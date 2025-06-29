@@ -1,0 +1,12 @@
+# This file defines the code owners for the repository.
+# Code owners are automatically assigned as reviewers for pull requests.
+
+# Default owner (applies to all files)
+* @lv416e
+
+# Owner of workflow files
+.github/workflows/* @lv416e
+
+# Owner of release-related files
+CHANGELOG.md @lv416e
+pyproject.toml @lv416e

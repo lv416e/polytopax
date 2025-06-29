@@ -1,0 +1,55 @@
+name: Docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "polytopax/**"
+      - ".github/workflows/docs.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "polytopax/**"
+      - ".github/workflows/docs.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: |
+            **/requirements*.txt
+            pyproject.toml
+            setup.py
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[docs]"
+          pip install sphinx==7.2.6 sphinx-rtd-theme==2.0.0 nbsphinx==0.9.3 myst-parser==2.0.0
+
+      - name: Build documentation
+        run: |
+          cd docs
+          mkdir -p _static
+          python build_docs.py
+
+      - name: Verify documentation build
+        run: |
+          if [ ! -f docs/_build/html/index.html ]; then
+            echo "Documentation build failed: index.html not found"
+            exit 1
+          fi
+          echo "Documentation build successful"
