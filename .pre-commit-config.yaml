@@ -1,0 +1,51 @@
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+    -   id: trailing-whitespace
+    -   id: end-of-file-fixer
+    -   id: check-yaml
+    -   id: check-added-large-files
+    -   id: check-toml
+    -   id: debug-statements
+
+-   repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.0
+    hooks:
+    -   id: ruff
+        exclude: ^(docs/|tests/|examples/)
+        args: [
+            "--fix",
+            "--exit-non-zero-on-fix",
+            "--target-version=py312",
+            "--line-length=100",
+            "--select=E,F,W,I,N,D,UP,B,C4,SIM,RUF",
+            "--ignore=N803,N806,D203,D212,E501",
+        ]
+
+-   repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.8.0
+    hooks:
+    -   id: mypy
+        additional_dependencies: [
+            types-requests,
+            types-setuptools,
+            jaxlib,
+            numpy>=1.20.0,
+            pandas-stubs,
+        ]
+        exclude: ^(docs/|tests/|examples/)
+        args: [
+            "--python-version=3.12",
+            "--warn-return-any",
+            "--warn-unused-configs",
+            "--check-untyped-defs",
+            "--strict-optional",
+            "--ignore-missing-imports",
+        ]
+
+-   repo: https://github.com/kynan/nbstripout
+    rev: 0.6.1
+    hooks:
+    -   id: nbstripout
+        files: ".ipynb"
