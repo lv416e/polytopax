@@ -3,7 +3,8 @@
 from .polytope import ConvexHull
 from .utils import generate_direction_vectors, remove_duplicate_points, scale_to_unit_ball, validate_point_cloud
 
-# Lazy import to avoid circular dependencies  
+
+# Lazy import to avoid circular dependencies
 def _get_hull_functions():
     from .hull import approximate_convex_hull, convex_hull
     return approximate_convex_hull, convex_hull
@@ -14,7 +15,7 @@ def __getattr__(name):
         approximate_convex_hull, convex_hull = _get_hull_functions()
         if name == "approximate_convex_hull":
             return approximate_convex_hull
-        elif name == "convex_hull": 
+        elif name == "convex_hull":
             return convex_hull
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 

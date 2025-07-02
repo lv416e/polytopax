@@ -38,7 +38,7 @@ def _lazy_import():
     global _CORE_AVAILABLE, _import_error
     if _import_error:
         return False
-    
+
     try:
         # Test import to check for circular dependencies
         from .core.polytope import ConvexHull  # noqa: F401
@@ -66,37 +66,37 @@ def __getattr__(name):
     """Lazy attribute access for imported modules."""
     if not _lazy_import():
         raise AttributeError(f"module '{__name__}' has no attribute '{name}' (core functionality unavailable)")
-    
+
     # Handle hull functions
     if name in ("convex_hull", "approximate_convex_hull"):
-        from .core.hull import convex_hull, approximate_convex_hull
+        from .core.hull import approximate_convex_hull, convex_hull
         if name == "convex_hull":
             return convex_hull
         elif name == "approximate_convex_hull":
             return approximate_convex_hull
-    
+
     # Handle approximation algorithms
     elif name in ("approximate_hull_advanced", "batched_approximate_hull", "multi_resolution_hull", "progressive_hull_refinement"):
         from .algorithms.approximation import (
             approximate_convex_hull as approximate_hull_advanced,
+        )
+        from .algorithms.approximation import (
             batched_approximate_hull,
             multi_resolution_hull,
             progressive_hull_refinement,
         )
-        if name == "approximate_hull_advanced":
-            return approximate_hull_advanced
-        elif name == "batched_approximate_hull":
-            return batched_approximate_hull
-        elif name == "multi_resolution_hull":
-            return multi_resolution_hull
-        elif name == "progressive_hull_refinement":
-            return progressive_hull_refinement
-    
+        return {
+            "approximate_hull_advanced": approximate_hull_advanced,
+            "batched_approximate_hull": batched_approximate_hull,
+            "multi_resolution_hull": multi_resolution_hull,
+            "progressive_hull_refinement": progressive_hull_refinement,
+        }[name]
+
     # Handle core classes
     elif name == "ConvexHull":
         from .core.polytope import ConvexHull
         return ConvexHull
-    
+
     # Handle utilities
     elif name in ("generate_direction_vectors", "remove_duplicate_points", "scale_to_unit_ball", "validate_point_cloud"):
         from .core.utils import (
@@ -105,15 +105,13 @@ def __getattr__(name):
             scale_to_unit_ball,
             validate_point_cloud,
         )
-        if name == "generate_direction_vectors":
-            return generate_direction_vectors
-        elif name == "remove_duplicate_points":
-            return remove_duplicate_points
-        elif name == "scale_to_unit_ball":
-            return scale_to_unit_ball
-        elif name == "validate_point_cloud":
-            return validate_point_cloud
-    
+        return {
+            "generate_direction_vectors": generate_direction_vectors,
+            "remove_duplicate_points": remove_duplicate_points,
+            "scale_to_unit_ball": scale_to_unit_ball,
+            "validate_point_cloud": validate_point_cloud,
+        }[name]
+
     # Handle predicates
     elif name in ("convex_hull_surface_area", "convex_hull_volume", "distance_to_convex_hull", "hausdorff_distance", "point_in_convex_hull"):
         from .operations.predicates import (
@@ -123,17 +121,14 @@ def __getattr__(name):
             hausdorff_distance,
             point_in_convex_hull,
         )
-        if name == "convex_hull_surface_area":
-            return convex_hull_surface_area
-        elif name == "convex_hull_volume":
-            return convex_hull_volume
-        elif name == "distance_to_convex_hull":
-            return distance_to_convex_hull
-        elif name == "hausdorff_distance":
-            return hausdorff_distance
-        elif name == "point_in_convex_hull":
-            return point_in_convex_hull
-    
+        return {
+            "convex_hull_surface_area": convex_hull_surface_area,
+            "convex_hull_volume": convex_hull_volume,
+            "distance_to_convex_hull": distance_to_convex_hull,
+            "hausdorff_distance": hausdorff_distance,
+            "point_in_convex_hull": point_in_convex_hull,
+        }[name]
+
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 # Version and metadata
@@ -147,7 +142,7 @@ __all__.extend([
     "ConvexHull",
     "approximate_convex_hull",
     # Advanced algorithms
-    "approximate_hull_advanced", 
+    "approximate_hull_advanced",
     "batched_approximate_hull",
     # Main interface
     "convex_hull",
@@ -173,7 +168,7 @@ def get_info():
     """Get PolytopAX package information."""
     # Test if core functionality is available
     core_available = _lazy_import()
-    
+
     info = {
         "version": __version__,
         "author": __author__,
