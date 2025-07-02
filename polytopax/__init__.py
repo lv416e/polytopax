@@ -29,45 +29,112 @@ Examples:
 __version__ = "0.1.0"
 __author__ = "PolytopAX Development Team"
 
-# Core imports
-try:
-    # Main convex hull functions
-    # Approximation algorithms
-    from .algorithms.approximation import approximate_convex_hull as approximate_hull_advanced  # noqa: F401
-    from .algorithms.approximation import (  # noqa: F401
-        batched_approximate_hull,
-        multi_resolution_hull,
-        progressive_hull_refinement,
-    )
-    from .core.hull import (  # noqa: F401
-        approximate_convex_hull,
-        convex_hull,
-    )
+# Core imports - using lazy loading to avoid circular imports
+_CORE_AVAILABLE = True
+_import_error = None
 
-    # ConvexHull class
-    from .core.polytope import ConvexHull  # noqa: F401
+def _lazy_import():
+    """Lazy import to avoid circular dependencies."""
+    global _CORE_AVAILABLE, _import_error
+    if _import_error:
+        return False
+    
+    try:
+        # Test import to check for circular dependencies
+        from .core.polytope import ConvexHull  # noqa: F401
+        from .core.utils import (  # noqa: F401
+            generate_direction_vectors,
+            remove_duplicate_points,
+            scale_to_unit_ball,
+            validate_point_cloud,
+        )
+        from .operations.predicates import (  # noqa: F401
+            convex_hull_surface_area,
+            convex_hull_volume,
+            distance_to_convex_hull,
+            hausdorff_distance,
+            point_in_convex_hull,
+        )
+        return True
+    except ImportError as e:
+        _CORE_AVAILABLE = False
+        _import_error = e
+        print(f"Warning: Core PolytopAX functionality not available: {e}")
+        return False
 
-    # Utility functions
-    from .core.utils import (  # noqa: F401
-        generate_direction_vectors,
-        remove_duplicate_points,
-        scale_to_unit_ball,
-        validate_point_cloud,
-    )
-
-    # Geometric predicates
-    from .operations.predicates import (  # noqa: F401
-        convex_hull_surface_area,
-        convex_hull_volume,
-        distance_to_convex_hull,
-        hausdorff_distance,
-        point_in_convex_hull,
-    )
-
-    _CORE_AVAILABLE = True
-except ImportError as e:
-    print(f"Warning: Core PolytopAX functionality not available: {e}")
-    _CORE_AVAILABLE = False
+def __getattr__(name):
+    """Lazy attribute access for imported modules."""
+    if not _lazy_import():
+        raise AttributeError(f"module '{__name__}' has no attribute '{name}' (core functionality unavailable)")
+    
+    # Handle hull functions
+    if name in ("convex_hull", "approximate_convex_hull"):
+        from .core.hull import convex_hull, approximate_convex_hull
+        if name == "convex_hull":
+            return convex_hull
+        elif name == "approximate_convex_hull":
+            return approximate_convex_hull
+    
+    # Handle approximation algorithms
+    elif name in ("approximate_hull_advanced", "batched_approximate_hull", "multi_resolution_hull", "progressive_hull_refinement"):
+        from .algorithms.approximation import (
+            approximate_convex_hull as approximate_hull_advanced,
+            batched_approximate_hull,
+            multi_resolution_hull,
+            progressive_hull_refinement,
+        )
+        if name == "approximate_hull_advanced":
+            return approximate_hull_advanced
+        elif name == "batched_approximate_hull":
+            return batched_approximate_hull
+        elif name == "multi_resolution_hull":
+            return multi_resolution_hull
+        elif name == "progressive_hull_refinement":
+            return progressive_hull_refinement
+    
+    # Handle core classes
+    elif name == "ConvexHull":
+        from .core.polytope import ConvexHull
+        return ConvexHull
+    
+    # Handle utilities
+    elif name in ("generate_direction_vectors", "remove_duplicate_points", "scale_to_unit_ball", "validate_point_cloud"):
+        from .core.utils import (
+            generate_direction_vectors,
+            remove_duplicate_points,
+            scale_to_unit_ball,
+            validate_point_cloud,
+        )
+        if name == "generate_direction_vectors":
+            return generate_direction_vectors
+        elif name == "remove_duplicate_points":
+            return remove_duplicate_points
+        elif name == "scale_to_unit_ball":
+            return scale_to_unit_ball
+        elif name == "validate_point_cloud":
+            return validate_point_cloud
+    
+    # Handle predicates
+    elif name in ("convex_hull_surface_area", "convex_hull_volume", "distance_to_convex_hull", "hausdorff_distance", "point_in_convex_hull"):
+        from .operations.predicates import (
+            convex_hull_surface_area,
+            convex_hull_volume,
+            distance_to_convex_hull,
+            hausdorff_distance,
+            point_in_convex_hull,
+        )
+        if name == "convex_hull_surface_area":
+            return convex_hull_surface_area
+        elif name == "convex_hull_volume":
+            return convex_hull_volume
+        elif name == "distance_to_convex_hull":
+            return distance_to_convex_hull
+        elif name == "hausdorff_distance":
+            return hausdorff_distance
+        elif name == "point_in_convex_hull":
+            return point_in_convex_hull
+    
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 # Version and metadata
 __all__ = [
@@ -75,34 +142,27 @@ __all__ = [
     "__version__",
 ]
 
-# Add core functions to __all__ if available
-if _CORE_AVAILABLE:
-    __all__.extend([
-        "ConvexHull",
-        "approximate_convex_hull",
-        # Advanced algorithms
-        "approximate_hull_advanced",
-        "batched_approximate_hull",
-        # Main interface
-        "convex_hull",
-        "convex_hull_surface_area",
-        "convex_hull_volume",
-        "distance_to_convex_hull",
-        "distance_to_hull",
-        "generate_direction_vectors",
-        "hausdorff_distance",
-        "hull_surface_area",
-        "hull_volume",
-        "multi_resolution_hull",
-        "point_in_convex_hull",
-        # Geometric predicates
-        "point_in_hull",
-        "progressive_hull_refinement",
-        "remove_duplicate_points",
-        "scale_to_unit_ball",
-        # Utilities
-        "validate_point_cloud"
-    ])
+# Core functions will be available through __getattr__
+__all__.extend([
+    "ConvexHull",
+    "approximate_convex_hull",
+    # Advanced algorithms
+    "approximate_hull_advanced", 
+    "batched_approximate_hull",
+    # Main interface
+    "convex_hull",
+    "convex_hull_surface_area",
+    "convex_hull_volume",
+    "distance_to_convex_hull",
+    "generate_direction_vectors",
+    "hausdorff_distance",
+    "multi_resolution_hull",
+    "point_in_convex_hull",
+    "progressive_hull_refinement",
+    "remove_duplicate_points",
+    "scale_to_unit_ball",
+    "validate_point_cloud"
+])
 
 # Expose version at package level
 def get_version():
@@ -111,14 +171,17 @@ def get_version():
 
 def get_info():
     """Get PolytopAX package information."""
+    # Test if core functionality is available
+    core_available = _lazy_import()
+    
     info = {
         "version": __version__,
         "author": __author__,
-        "core_available": _CORE_AVAILABLE,
+        "core_available": core_available,
         "description": "JAX-based computational geometry library"
     }
 
-    if _CORE_AVAILABLE:
+    if core_available:
         info["available_functions"] = len(__all__) - 2  # Exclude version and author
 
     return info

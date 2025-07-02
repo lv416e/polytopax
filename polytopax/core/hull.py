@@ -4,7 +4,6 @@
 import jax
 from jax import Array
 
-from ..algorithms.approximation import approximate_convex_hull as _approximate_convex_hull
 from ..operations.predicates import convex_hull_surface_area as hull_surface_area
 from ..operations.predicates import convex_hull_volume as hull_volume
 from ..operations.predicates import distance_to_convex_hull as distance_to_hull
@@ -49,6 +48,7 @@ def convex_hull(
     points = validate_point_cloud(points)
 
     if algorithm == "approximate":
+        from ..algorithms.approximation import approximate_convex_hull as _approximate_convex_hull
         hull_vertices, _ = _approximate_convex_hull(points, **kwargs)
         return hull_vertices
     elif algorithm == "quickhull":
@@ -93,6 +93,7 @@ def approximate_convex_hull(
     # Convert to new API parameters
     random_key = jax.random.PRNGKey(random_seed) if random_seed else None
 
+    from ..algorithms.approximation import approximate_convex_hull as _approximate_convex_hull
     return _approximate_convex_hull(
         points,
         n_directions=n_directions,
