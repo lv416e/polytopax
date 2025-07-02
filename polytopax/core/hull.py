@@ -1,18 +1,15 @@
 """Convex hull computation functions - unified interface."""
 
-import jax
-import jax.numpy as jnp
-from jax import Array
-from typing import Tuple, Optional, Union
 
-from .utils import validate_point_cloud, PointCloud, HullVertices, SamplingMethod
+import jax
+from jax import Array
+
 from ..algorithms.approximation import approximate_convex_hull as _approximate_convex_hull
-from ..operations.predicates import (
-    point_in_convex_hull as point_in_hull,
-    convex_hull_volume as hull_volume,
-    convex_hull_surface_area as hull_surface_area,
-    distance_to_convex_hull as distance_to_hull
-)
+from ..operations.predicates import convex_hull_surface_area as hull_surface_area
+from ..operations.predicates import convex_hull_volume as hull_volume
+from ..operations.predicates import distance_to_convex_hull as distance_to_hull
+from ..operations.predicates import point_in_convex_hull as point_in_hull
+from .utils import HullVertices, PointCloud, validate_point_cloud
 
 
 def convex_hull(
@@ -50,7 +47,7 @@ def convex_hull(
             - random_key (Array): JAX random key
     """
     points = validate_point_cloud(points)
-    
+
     if algorithm == "approximate":
         hull_vertices, _ = _approximate_convex_hull(points, **kwargs)
         return hull_vertices
@@ -73,7 +70,7 @@ def approximate_convex_hull(
     n_directions: int = 100,
     method: str = "uniform",
     random_seed: int = 0
-) -> Tuple[Array, Array]:
+) -> tuple[Array, Array]:
     """Differentiable approximate convex hull computation.
 
     This function maintains backward compatibility with the original API
@@ -95,7 +92,7 @@ def approximate_convex_hull(
     """
     # Convert to new API parameters
     random_key = jax.random.PRNGKey(random_seed) if random_seed else None
-    
+
     return _approximate_convex_hull(
         points,
         n_directions=n_directions,
@@ -106,12 +103,12 @@ def approximate_convex_hull(
 
 # Re-export key functions for convenience
 __all__ = [
-    "convex_hull",
     "approximate_convex_hull",
-    "point_in_hull",
-    "hull_volume", 
+    "convex_hull",
+    "distance_to_hull",
     "hull_surface_area",
-    "distance_to_hull"
+    "hull_volume",
+    "point_in_hull"
 ]
 
 

@@ -54,7 +54,7 @@ examples = [
 ]
 
 [tool.setuptools.packages.find]
-where = ["polytopax"]
+where = ["."]
 
 [tool.ruff]
 target-version = "py310"
