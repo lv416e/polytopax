@@ -3,7 +3,6 @@
 This module validates the improved point containment implementations.
 """
 
-import jax
 import jax.numpy as jnp
 
 from polytopax.operations.predicates import point_in_convex_hull
@@ -11,7 +10,6 @@ from polytopax.operations.predicates import point_in_convex_hull
 
 def test_robust_methods_comprehensive():
     """Comprehensive test of robust point containment methods."""
-
     # Test case 1: Unit square
     square = jnp.array([[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]])
 
@@ -77,7 +75,8 @@ def test_robust_methods_comprehensive():
         accuracy = correct_count / len(triangle_tests)
         print(f"  Accuracy: {accuracy:.1%}")
 
-    return results
+    # Assert that halfspace method achieved perfect accuracy for unit square
+    assert results["halfspace"] == 1.0, "Halfspace method should achieve 100% accuracy"
 
 
 def test_3d_point_containment():
@@ -146,12 +145,13 @@ def test_edge_cases():
             print(f"  {description:12} {point}: ERROR - {e}")
 
 
-if __name__ == "__main__":
+def test_robust_point_containment_main():
+    """Main test function that doesn't return a value."""
     print("🔬 Testing Robust Point Containment Methods")
     print("=" * 50)
 
     # Run comprehensive tests
-    results = test_robust_methods_comprehensive()
+    test_robust_methods_comprehensive()
 
     # Test 3D
     test_3d_point_containment()
@@ -164,3 +164,7 @@ if __name__ == "__main__":
     print("The halfspace method correctly handles interior points that")
     print("the linear_programming and barycentric methods miss.")
     print("This resolves the critical point containment reliability issue.")
+
+
+if __name__ == "__main__":
+    test_robust_point_containment_main()

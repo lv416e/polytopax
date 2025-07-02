@@ -45,7 +45,7 @@ def validate_point_cloud(points: Array) -> Array:
         # This will work for concrete arrays but fail for traced arrays
         if jnp.any(jnp.isnan(points)):
             raise ValueError("Point cloud contains NaN values")
-        
+
         if jnp.any(jnp.isinf(points)):
             raise ValueError("Point cloud contains infinite values")
     except jax.errors.TracerBoolConversionError:

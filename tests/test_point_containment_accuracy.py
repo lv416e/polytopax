@@ -4,12 +4,11 @@ This module tests and improves the reliability of point-in-convex-hull
 testing for improved geometric predicates.
 """
 
-import jax
 import jax.numpy as jnp
 import pytest
 
-from polytopax.operations.predicates import point_in_convex_hull
 from polytopax.algorithms.approximation import improved_approximate_convex_hull
+from polytopax.operations.predicates import point_in_convex_hull
 
 
 class TestCurrentPointContainmentIssues:

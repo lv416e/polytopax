@@ -222,44 +222,7 @@ def adaptive_temperature_control(
     return temperature
 
 
-def compute_hull_quality_metrics(
-    original_points: Array,
-    hull_vertices: Array,
-    hull_indices: Array
-) -> dict:
-    """Compute quality metrics for approximate hull.
-
-    Args:
-        original_points: Original point cloud
-        hull_vertices: Computed hull vertices
-        hull_indices: Indices of hull vertices in original points
-
-    Returns:
-        Dictionary of quality metrics
-    """
-    n_original = original_points.shape[-2]
-    n_hull = hull_vertices.shape[-2]
-
-    # Coverage ratio
-    coverage_ratio = n_hull / n_original
-
-    # Approximation error (if we have ground truth hull)
-    # For now, compute average distance from original points to hull
-    # This is a simplified metric
-    hull_center = jnp.mean(hull_vertices, axis=-2)
-    original_center = jnp.mean(original_points, axis=-2)
-    center_distance = jnp.linalg.norm(hull_center - original_center)
-
-    # Compactness (ratio of hull points to total points)
-    compactness = 1.0 - coverage_ratio
-
-    return {
-        "coverage_ratio": coverage_ratio,
-        "center_distance": center_distance,
-        "compactness": compactness,
-        "n_hull_vertices": n_hull,
-        "n_original_points": n_original
-    }
+# Removed duplicate function - using the improved version below
 
 
 def multi_resolution_hull(
@@ -402,15 +365,15 @@ def improved_approximate_convex_hull(
     max_vertices: int | None = None
 ) -> tuple[HullVertices, Array]:
     """Improved differentiable convex hull with vertex count constraint.
-    
+
     This algorithm addresses the mathematical issues in the original implementation
     by using a staged selection method that ensures output vertices ≤ input vertices.
-    
+
     Stages:
     1. Coarse boundary detection to identify candidate vertices
-    2. Differentiable refinement with constraints  
+    2. Differentiable refinement with constraints
     3. Hard vertex limit enforcement
-    
+
     Args:
         points: Point cloud with shape (..., n_points, dim)
         n_directions: Number of direction vectors for sampling
@@ -418,39 +381,36 @@ def improved_approximate_convex_hull(
         temperature: Temperature for soft selection (lower = more selective)
         random_key: JAX random key for reproducibility
         max_vertices: Maximum output vertices (default: input vertex count)
-        
+
     Returns:
         Tuple of (hull_vertices, hull_indices) where hull_vertices.shape[0] <= points.shape[0]
-        
+
     Mathematical guarantee:
         len(output_vertices) <= len(input_points)
     """
     points = validate_point_cloud(points)
-    n_points, dim = points.shape[-2], points.shape[-1]
-    
-    if max_vertices is None:
-        max_vertices = n_points
-    else:
-        max_vertices = min(max_vertices, n_points)
-    
+    n_points, _dim = points.shape[-2], points.shape[-1]
+
+    max_vertices = n_points if max_vertices is None else min(max_vertices, n_points)
+
     if random_key is None:
         random_key = jax.random.PRNGKey(0)
-        
+
     # Stage 1: Coarse boundary detection
     boundary_candidates, candidate_scores = _stage1_coarse_boundary_detection(
         points, n_directions, method, random_key
     )
-    
+
     # Stage 2: Differentiable refinement with constraints
     refined_vertices, refined_indices = _stage2_constrained_refinement(
         points, boundary_candidates, candidate_scores, temperature, max_vertices
     )
-    
+
     # Stage 3: Hard vertex limit enforcement
     final_vertices, final_indices = _stage3_enforce_vertex_limit(
         refined_vertices, refined_indices, max_vertices
     )
-    
+
     return final_vertices, final_indices
 
 
@@ -461,81 +421,81 @@ def _stage1_coarse_boundary_detection(
     random_key: Array
 ) -> tuple[Array, Array]:
     """Stage 1: Coarse boundary detection using direction-based scoring.
-    
+
     Identifies points that are likely to be on the convex hull boundary
     by checking how often they are extreme in various directions.
-    
+
     Args:
         points: Input point cloud
         n_directions: Number of directions to test
         method: Direction sampling method
         random_key: Random key
-        
+
     Returns:
         Tuple of (candidate_points, boundary_scores)
     """
     n_points, dim = points.shape
-    
+
     # Generate direction vectors
     directions = generate_direction_vectors(dim, n_directions, method, random_key)
-    
+
     # For each direction, count how often each point is "most extreme"
     boundary_scores = jnp.zeros(n_points)
-    
+
     for direction in directions:
         # Project points onto direction
         projections = jnp.dot(points, direction)
-        
+
         # Find the point(s) with maximum projection
         max_projection = jnp.max(projections)
-        
+
         # Give points that are exactly at the maximum a score of 1
         # This is more precise than soft scoring for boundary detection
         is_extreme = jnp.abs(projections - max_projection) < 1e-6
         boundary_scores = boundary_scores + is_extreme.astype(jnp.float32)
-    
+
     # Normalize by number of directions tested
     boundary_scores = boundary_scores / n_directions
-    
+
     return points, boundary_scores
 
 
 def _stage2_constrained_refinement(
     points: Array,
-    boundary_candidates: Array, 
+    boundary_candidates: Array,
     candidate_scores: Array,
     temperature: float,
     max_vertices: int
 ) -> tuple[Array, Array]:
     """Stage 2: Differentiable refinement with vertex count constraints.
-    
+
     Selects points with high boundary scores, but only those that actually
     contribute to the hull boundary.
-    
+
     Args:
         points: Original input points
         boundary_candidates: Candidate points from stage 1
         candidate_scores: Boundary likelihood scores
         temperature: Soft selection temperature (currently unused to maintain exactness)
         max_vertices: Maximum number of vertices to select
-        
+
     Returns:
         Tuple of (refined_vertices, refined_indices)
     """
     n_points = points.shape[0]
-    
+
     # Only select points that have non-zero boundary scores
     # This filters out interior points that never appear as extreme points
     has_boundary_score = candidate_scores > 1e-6
     boundary_point_indices = jnp.where(has_boundary_score, size=n_points, fill_value=-1)[0]
-    
+
     # Filter out the fill values (-1)
     valid_boundary_indices = boundary_point_indices[boundary_point_indices >= 0]
-    
+
     # Limit to max_vertices
     n_boundary_points = jnp.sum(has_boundary_score).astype(int)
     n_selected = min(int(n_boundary_points), max_vertices)
-    
+
     if n_selected == 0:
         # Fallback: if no boundary points found, take the first point
         selected_indices = jnp.array([0])
@@ -544,7 +504,7 @@ def _stage2_constrained_refinement(
         # Take the top n_selected boundary points
         selected_indices = valid_boundary_indices[:n_selected]
         selected_vertices = points[selected_indices]
-    
+
     return selected_vertices, selected_indices
 
 
@@ -554,22 +514,22 @@ def _stage3_enforce_vertex_limit(
     max_vertices: int
 ) -> tuple[Array, Array]:
     """Stage 3: Hard enforcement of vertex count constraint.
-    
+
     Final safety check to ensure we never exceed the vertex limit.
-    
+
     Args:
         vertices: Candidate vertices from stage 2
         indices: Corresponding indices
         max_vertices: Hard limit on vertex count
-        
+
     Returns:
         Tuple of (final_vertices, final_indices) with guaranteed constraint satisfaction
     """
     n_vertices = vertices.shape[0]
-    
+
     if n_vertices <= max_vertices:
         return vertices, indices
-    
+
     # If we somehow exceeded the limit, take the first max_vertices
     # In practice, this shouldn't happen due to stage 2 constraints
     return vertices[:max_vertices], indices[:max_vertices]
@@ -580,20 +540,20 @@ def compute_hull_quality_metrics(
     original_points: Array
 ) -> dict[str, float]:
     """Compute quality metrics for hull approximation.
-    
+
     Args:
         hull_vertices: Computed hull vertices
         original_points: Original input points
-        
+
     Returns:
         Dictionary of quality metrics
     """
     n_hull = hull_vertices.shape[0]
     n_original = original_points.shape[0]
-    
+
     # Vertex count ratio (should be ≤ 1.0)
     vertex_ratio = n_hull / n_original
-    
+
     # Coverage: fraction of original points that are hull vertices
     # (This is a simplified metric - true coverage would check containment)
     exact_matches = 0
@@ -602,15 +562,15 @@ def compute_hull_quality_metrics(
             if jnp.allclose(hull_vertex, original_point, atol=1e-6):
                 exact_matches += 1
                 break
-    
+
     coverage = exact_matches / n_original
-    
+
     # Boundary efficiency: how well we use our vertex budget
     boundary_efficiency = exact_matches / n_hull if n_hull > 0 else 0.0
-    
+
     return {
         "vertex_count_ratio": float(vertex_ratio),
-        "coverage": float(coverage), 
+        "coverage": float(coverage),
         "boundary_efficiency": float(boundary_efficiency),
         "n_hull_vertices": int(n_hull),
         "n_original_points": int(n_original),
@@ -620,6 +580,6 @@ def compute_hull_quality_metrics(
 
 # JIT-compiled version of improved algorithm
 improved_approximate_convex_hull_jit = jax.jit(
-    improved_approximate_convex_hull, 
+    improved_approximate_convex_hull,
     static_argnames=['method']
 )

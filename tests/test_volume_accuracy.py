@@ -4,13 +4,11 @@ This module tests and improves the accuracy of convex hull volume calculations
 by implementing and comparing multiple computational methods.
 """
 
-import jax
 import jax.numpy as jnp
 import pytest
-import math
 
-from polytopax.operations.predicates import convex_hull_volume, compute_volume_accuracy_metrics
 from polytopax.algorithms.approximation import improved_approximate_convex_hull
+from polytopax.operations.predicates import compute_volume_accuracy_metrics, convex_hull_volume
 
 
 class TestCurrentVolumeAccuracy:

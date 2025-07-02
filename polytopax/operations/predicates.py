@@ -280,7 +280,11 @@ def _volume_divergence_theorem(vertices: HullVertices) -> Array:
     dim = vertices.shape[-1]
 
     if dim != 3:
-        raise ValueError("Divergence theorem method only works for 3D")
+        warnings.warn(
+            "Divergence theorem method only works for 3D, falling back to simplex decomposition",
+            UserWarning, stacklevel=2
+        )
+        return _volume_simplex_decomposition(vertices)
 
     # TODO: Implement proper divergence theorem volume calculation
     # This requires computing the surface mesh and applying the theorem
@@ -615,7 +619,7 @@ def _volume_determinant_method(vertices: HullVertices) -> Array:
 def compute_volume_accuracy_metrics(
     vertices: HullVertices,
     exact_volume: float | None = None
-) -> dict[str, float]:
+) -> dict[str, float | dict | bool]:
     """Compute accuracy metrics for volume computation methods.
 
     Args:
