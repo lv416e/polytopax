@@ -310,7 +310,7 @@ class TestComputeHullQualityMetrics:
             [0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0], [0.5, 0.5]
         ])
         hull_vertices = jnp.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]])
-        hull_indices = jnp.array([0, 1, 2])
+        jnp.array([0, 1, 2])
 
         metrics = compute_hull_quality_metrics(
             hull_vertices, original_points
@@ -335,7 +335,7 @@ class TestComputeHullQualityMetrics:
         """Test metrics for perfect hull (all points are vertices)."""
         points = jnp.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]])
         hull_vertices = points
-        hull_indices = jnp.array([0, 1, 2])
+        jnp.array([0, 1, 2])
 
         metrics = compute_hull_quality_metrics(hull_vertices, points)
 
