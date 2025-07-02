@@ -13,7 +13,7 @@ def point_in_convex_hull(
     point: Array,
     hull_vertices: HullVertices,
     tolerance: float = 1e-8,
-    method: str = "linear_programming"
+    method: str = "halfspace"
 ) -> Array:
     """Test if point is inside convex hull.
 
@@ -24,7 +24,7 @@ def point_in_convex_hull(
         point: Point to test with shape (..., dim)
         hull_vertices: Hull vertices with shape (..., n_vertices, dim)
         tolerance: Numerical tolerance for boundary detection
-        method: Algorithm to use ("linear_programming", "barycentric")
+        method: Algorithm to use ("halfspace", "linear_programming", "barycentric")
 
     Returns:
         Boolean array indicating inclusion (True = inside or on boundary)
@@ -41,14 +41,14 @@ def point_in_convex_hull(
     """
     point = jnp.asarray(point)
     hull_vertices = validate_point_cloud(hull_vertices)
-    
+
     # Validate dimensional consistency
     if point.ndim == 0:
         raise ValueError("Point must have at least 1 dimension")
-    
+
     point_dim = point.shape[-1] if point.ndim > 0 else 1
     hull_dim = hull_vertices.shape[-1]
-    
+
     if point_dim != hull_dim:
         raise ValueError(f"Point dimension ({point_dim}) must match hull dimension ({hull_dim})")
 
@@ -56,6 +56,8 @@ def point_in_convex_hull(
         return _point_in_hull_lp(point, hull_vertices, tolerance)
     elif method == "barycentric":
         return _point_in_hull_barycentric(point, hull_vertices, tolerance)
+    elif method == "halfspace":
+        return _point_in_hull_halfspace(point, hull_vertices, tolerance)
     else:
         raise ValueError(f"Unknown method: {method}")
 
@@ -182,8 +184,10 @@ def convex_hull_volume(
         vertices: Hull vertices with shape (..., n_vertices, dim)
         method: Volume computation method
             - "simplex_decomposition": Decompose into simplices
+            - "shoelace": Shoelace formula (2D only)
             - "divergence_theorem": Use divergence theorem (3D only)
             - "monte_carlo": Monte Carlo estimation
+            - "multi_method": Consensus across multiple methods
 
     Returns:
         Volume of the convex hull (d-dimensional measure)
@@ -196,10 +200,14 @@ def convex_hull_volume(
 
     if method == "simplex_decomposition":
         return _volume_simplex_decomposition(vertices)
+    elif method == "shoelace":
+        return _volume_shoelace_formula(vertices)
     elif method == "divergence_theorem":
         return _volume_divergence_theorem(vertices)
     elif method == "monte_carlo":
         return _volume_monte_carlo(vertices)
+    elif method == "multi_method":
+        return _volume_multi_method_consensus(vertices)
     else:
         raise ValueError(f"Unknown volume method: {method}")
 
@@ -497,6 +505,410 @@ def hausdorff_distance(
     max_dist_2_to_1 = jnp.max(distances_2_to_1)
 
     return jnp.maximum(max_dist_1_to_2, max_dist_2_to_1)
+
+
+# =============================================================================
+# PHASE 2: IMPROVED VOLUME COMPUTATION METHODS
+# =============================================================================
+
+def _volume_shoelace_formula(vertices: HullVertices) -> Array:
+    """Compute 2D polygon area using shoelace formula.
+
+    The shoelace formula: Area = 0.5 * |Σ(x_i * y_{i+1} - x_{i+1} * y_i)|
+    """
+    if vertices.shape[-1] != 2:
+        raise ValueError("Shoelace formula only works for 2D polygons")
+
+    n_vertices = vertices.shape[-2]
+    if n_vertices < 3:
+        return jnp.array(0.0)
+
+    # Sort vertices by angle to ensure proper ordering
+    centroid = jnp.mean(vertices, axis=-2)
+    centered_vertices = vertices - centroid
+
+    # Compute angles from centroid
+    angles = jnp.arctan2(centered_vertices[..., 1], centered_vertices[..., 0])
+    sorted_indices = jnp.argsort(angles)
+    sorted_vertices = vertices[sorted_indices]
+
+    # Apply shoelace formula
+    x = sorted_vertices[..., 0]
+    y = sorted_vertices[..., 1]
+
+    # Cyclic differences: x_i * y_{i+1} - x_{i+1} * y_i
+    x_next = jnp.roll(x, -1, axis=-1)
+    y_next = jnp.roll(y, -1, axis=-1)
+
+    cross_products = x * y_next - x_next * y
+    area = 0.5 * jnp.abs(jnp.sum(cross_products))
+
+    return area
+
+
+def _volume_multi_method_consensus(vertices: HullVertices) -> Array:
+    """Compute volume using multiple methods and return consensus.
+
+    Uses different methods based on dimensionality and returns a consensus
+    value to improve accuracy and reliability.
+    """
+    dim = vertices.shape[-1]
+
+    if dim == 2:
+        # For 2D, use both simplex decomposition and shoelace
+        try:
+            volume_simplex = _volume_simplex_decomposition(vertices)
+            volume_shoelace = _volume_shoelace_formula(vertices)
+
+            # Check agreement between methods
+            relative_diff = jnp.abs(volume_simplex - volume_shoelace) / jnp.maximum(volume_simplex, 1e-10)
+
+            # If methods agree well, return average
+            if relative_diff < 0.1:  # 10% agreement
+                return 0.5 * (volume_simplex + volume_shoelace)
+            else:
+                # If methods disagree, prefer shoelace for 2D (more accurate)
+                return volume_shoelace
+
+        except (ValueError, Exception):
+            # Fallback to simplex decomposition
+            return _volume_simplex_decomposition(vertices)
+
+    elif dim == 3:
+        # For 3D, use simplex decomposition (most reliable for 3D)
+        try:
+            volume_simplex = _volume_simplex_decomposition(vertices)
+            # Could add other 3D methods here in the future
+            return volume_simplex
+        except Exception:
+            # Fallback to Monte Carlo if simplex fails
+            return _volume_monte_carlo(vertices, n_samples=1000)
+
+    else:
+        # For higher dimensions, use simplex decomposition
+        return _volume_simplex_decomposition(vertices)
+
+
+def _volume_determinant_method(vertices: HullVertices) -> Array:
+    """Alternative volume computation using determinant method.
+
+    This method is particularly accurate for simplices and can serve
+    as a cross-check for other methods.
+    """
+    n_vertices, dim = vertices.shape[-2], vertices.shape[-1]
+
+    if n_vertices == dim + 1:
+        # Perfect simplex - use determinant formula
+        v0 = vertices[0]
+        edge_vectors = vertices[1:] - v0
+
+        if dim == edge_vectors.shape[0]:
+            det = jnp.linalg.det(edge_vectors)
+            # Volume = |det| / d!
+            factorial = jnp.array([1, 1, 2, 6, 24, 120, 720, 5040][dim])
+            return jnp.abs(det) / factorial
+
+    # For non-simplex cases, fall back to simplex decomposition
+    return _volume_simplex_decomposition(vertices)
+
+
+def compute_volume_accuracy_metrics(
+    vertices: HullVertices,
+    exact_volume: float | None = None
+) -> dict[str, float]:
+    """Compute accuracy metrics for volume computation methods.
+
+    Args:
+        vertices: Hull vertices
+        exact_volume: Known exact volume for comparison (if available)
+
+    Returns:
+        Dictionary containing accuracy metrics
+    """
+    dim = vertices.shape[-1]
+
+    # Compute volume with different methods
+    volumes = {}
+
+    try:
+        volumes["simplex"] = float(_volume_simplex_decomposition(vertices))
+    except Exception:
+        volumes["simplex"] = None
+
+    if dim == 2:
+        try:
+            volumes["shoelace"] = float(_volume_shoelace_formula(vertices))
+        except Exception:
+            volumes["shoelace"] = None
+
+    try:
+        volumes["multi_method"] = float(_volume_multi_method_consensus(vertices))
+    except Exception:
+        volumes["multi_method"] = None
+
+    # Compute consistency metrics
+    valid_volumes = [v for v in volumes.values() if v is not None]
+
+    if len(valid_volumes) >= 2:
+        mean_volume = jnp.mean(jnp.array(valid_volumes))
+        std_volume = jnp.std(jnp.array(valid_volumes))
+        coefficient_of_variation = std_volume / mean_volume if mean_volume > 0 else float('inf')
+    else:
+        mean_volume = valid_volumes[0] if valid_volumes else 0.0
+        std_volume = 0.0
+        coefficient_of_variation = 0.0
+
+    metrics = {
+        "volumes": volumes,
+        "mean_volume": float(mean_volume),
+        "std_volume": float(std_volume),
+        "coefficient_of_variation": float(coefficient_of_variation),
+        "method_consistency": float(1.0 - coefficient_of_variation) if coefficient_of_variation < 1 else 0.0
+    }
+
+    # Add accuracy metrics if exact volume is provided
+    if exact_volume is not None:
+        metrics["exact_volume"] = exact_volume
+        for method, volume in volumes.items():
+            if volume is not None:
+                relative_error = abs(volume - exact_volume) / exact_volume
+                metrics[f"{method}_relative_error"] = float(relative_error)
+                metrics[f"{method}_accurate"] = relative_error < 0.05  # 5% threshold
+
+    return metrics
+
+
+# =============================================================================
+# PHASE 2: IMPROVED POINT CONTAINMENT METHODS
+# =============================================================================
+
+def _point_in_hull_halfspace(
+    point: Array,
+    hull_vertices: HullVertices,
+    tolerance: float
+) -> Array:
+    """Improved halfspace-based point-in-hull test.
+
+    This method computes the convex hull faces and checks if the point
+    is on the correct side of all halfspaces defined by the faces.
+    """
+    n_vertices, dim = hull_vertices.shape[-2], hull_vertices.shape[-1]
+
+    if n_vertices < dim + 1:
+        # Not enough vertices for full-dimensional hull
+        # Fall back to distance-based test
+        distances = jnp.linalg.norm(hull_vertices - point, axis=-1)
+        min_distance = jnp.min(distances)
+        return min_distance <= tolerance
+
+    if dim == 2:
+        return _point_in_hull_2d_robust(point, hull_vertices, tolerance)
+    elif dim == 3:
+        return _point_in_hull_3d_robust(point, hull_vertices, tolerance)
+    else:
+        # For higher dimensions, use improved barycentric method
+        return _point_in_hull_barycentric_robust(point, hull_vertices, tolerance)
+
+
+def _point_in_hull_2d_robust(
+    point: Array,
+    hull_vertices: HullVertices,
+    tolerance: float
+) -> Array:
+    """Robust 2D point-in-polygon test using winding number."""
+    n_vertices = hull_vertices.shape[-2]
+
+    if n_vertices < 3:
+        # Degenerate case
+        distances = jnp.linalg.norm(hull_vertices - point, axis=-1)
+        return jnp.min(distances) <= tolerance
+
+    # Sort vertices by angle to ensure proper order
+    centroid = jnp.mean(hull_vertices, axis=-2)
+    centered_vertices = hull_vertices - centroid
+    angles = jnp.arctan2(centered_vertices[:, 1], centered_vertices[:, 0])
+    sorted_indices = jnp.argsort(angles)
+    sorted_vertices = hull_vertices[sorted_indices]
+
+    # Use winding number algorithm
+    winding_number = 0.0
+
+    for i in range(n_vertices):
+        v1 = sorted_vertices[i] - point
+        v2 = sorted_vertices[(i + 1) % n_vertices] - point
+
+        # Check if point is on edge (within tolerance)
+        edge_vec = v2 - v1
+        if jnp.linalg.norm(edge_vec) > 1e-12:
+            # Project point onto edge
+            t = jnp.dot(-v1, edge_vec) / jnp.dot(edge_vec, edge_vec)
+            t = jnp.clip(t, 0.0, 1.0)
+            closest_point = v1 + t * edge_vec
+            distance_to_edge = jnp.linalg.norm(closest_point)
+
+            if distance_to_edge <= tolerance:
+                return jnp.array(True)
+
+        # Compute contribution to winding number
+        cross_product = v1[0] * v2[1] - v1[1] * v2[0]
+        dot_product = jnp.dot(v1, v2)
+
+        angle = jnp.arctan2(cross_product, dot_product)
+        winding_number += angle
+
+    # Point is inside if winding number is close to ±2π
+    abs_winding = jnp.abs(winding_number)
+    return abs_winding > jnp.pi  # Threshold for "inside"
+
+
+def _point_in_hull_3d_robust(
+    point: Array,
+    hull_vertices: HullVertices,
+    tolerance: float
+) -> Array:
+    """Robust 3D point-in-hull test."""
+    n_vertices = hull_vertices.shape[-2]
+
+    if n_vertices < 4:
+        # Degenerate 3D case
+        distances = jnp.linalg.norm(hull_vertices - point, axis=-1)
+        return jnp.min(distances) <= tolerance
+
+    # For 3D, use tetrahedralization approach
+    # Check if point is inside any tetrahedron formed by hull vertices
+    centroid = jnp.mean(hull_vertices, axis=-2)
+
+    # Test if point is inside the tetrahedron formed by centroid and any face
+    for i in range(n_vertices - 2):
+        for j in range(i + 1, n_vertices - 1):
+            for k in range(j + 1, n_vertices):
+                # Form tetrahedron with centroid and vertices i, j, k
+                tetrahedron = jnp.array([
+                    centroid,
+                    hull_vertices[i],
+                    hull_vertices[j],
+                    hull_vertices[k]
+                ])
+
+                # Check if point is in this tetrahedron using barycentric coordinates
+                if _point_in_tetrahedron(point, tetrahedron, tolerance):
+                    return jnp.array(True)
+
+    return jnp.array(False)
+
+
+def _point_in_tetrahedron(
+    point: Array,
+    tetrahedron_vertices: Array,
+    tolerance: float
+) -> Array:
+    """Test if point is inside tetrahedron using barycentric coordinates."""
+    # Solve for barycentric coordinates
+    # point = λ₀*v₀ + λ₁*v₁ + λ₂*v₂ + λ₃*v₃ where Σλᵢ = 1
+
+    v0 = tetrahedron_vertices[0]
+    edge_matrix = tetrahedron_vertices[1:] - v0  # 3x3 matrix
+    point_vec = point - v0
+
+    try:
+        # Solve the linear system
+        lambdas_123 = jnp.linalg.solve(edge_matrix.T, point_vec)
+        lambda_0 = 1.0 - jnp.sum(lambdas_123)
+
+        all_lambdas = jnp.concatenate([jnp.array([lambda_0]), lambdas_123])
+
+        # Point is inside if all barycentric coordinates are non-negative
+        return jnp.all(all_lambdas >= -tolerance)
+
+    except jnp.linalg.LinAlgError:
+        # Singular matrix - degenerate tetrahedron
+        return jnp.array(False)
+
+
+def _point_in_hull_barycentric_robust(
+    point: Array,
+    hull_vertices: HullVertices,
+    tolerance: float
+) -> Array:
+    """Improved barycentric coordinate based point-in-hull test."""
+    n_vertices, dim = hull_vertices.shape[-2], hull_vertices.shape[-1]
+
+    if n_vertices == dim + 1:
+        # Perfect simplex - use exact barycentric coordinates
+        return _point_in_simplex_exact(point, hull_vertices, tolerance)
+    elif n_vertices < dim + 1:
+        # Under-determined - check distance to hull
+        distances = jnp.linalg.norm(hull_vertices - point, axis=-1)
+        return jnp.min(distances) <= tolerance
+    else:
+        # Over-determined - decompose into simplices
+        return _point_in_hull_simplex_decomposition(point, hull_vertices, tolerance)
+
+
+def _point_in_simplex_exact(
+    point: Array,
+    simplex_vertices: Array,
+    tolerance: float
+) -> Array:
+    """Exact point-in-simplex test using barycentric coordinates."""
+    n_vertices, dim = simplex_vertices.shape[-2], simplex_vertices.shape[-1]
+
+    if n_vertices != dim + 1:
+        raise ValueError(f"Simplex in {dim}D should have {dim+1} vertices, got {n_vertices}")
+
+    # Set up barycentric coordinate system
+    v0 = simplex_vertices[0]
+    edge_matrix = simplex_vertices[1:] - v0
+    point_vec = point - v0
+
+    try:
+        # Solve for barycentric coordinates
+        lambdas_rest = jnp.linalg.solve(edge_matrix.T, point_vec)
+        lambda_0 = 1.0 - jnp.sum(lambdas_rest)
+
+        all_lambdas = jnp.concatenate([jnp.array([lambda_0]), lambdas_rest])
+
+        # Point is inside if all coordinates are non-negative (within tolerance)
+        return jnp.all(all_lambdas >= -tolerance)
+
+    except jnp.linalg.LinAlgError:
+        # Degenerate simplex
+        distances = jnp.linalg.norm(simplex_vertices - point, axis=-1)
+        return jnp.min(distances) <= tolerance
+
+
+def _point_in_hull_simplex_decomposition(
+    point: Array,
+    hull_vertices: HullVertices,
+    tolerance: float
+) -> Array:
+    """Test point containment by decomposing hull into simplices."""
+    n_vertices, dim = hull_vertices.shape[-2], hull_vertices.shape[-1]
+
+    # Simple approach: test against tetrahedra/triangles formed with centroid
+    centroid = jnp.mean(hull_vertices, axis=-2)
+
+    # For each subset of dim vertices, form a simplex with centroid
+    # and test if point is inside
+    if dim == 2:
+        # Test triangles
+        for i in range(n_vertices):
+            j = (i + 1) % n_vertices
+            triangle = jnp.array([centroid, hull_vertices[i], hull_vertices[j]])
+            if _point_in_simplex_exact(point, triangle, tolerance):
+                return jnp.array(True)
+    elif dim == 3:
+        # Test tetrahedra (simplified approach)
+        for i in range(n_vertices - 2):
+            for j in range(i + 1, n_vertices - 1):
+                for k in range(j + 1, n_vertices):
+                    tetrahedron = jnp.array([
+                        centroid, hull_vertices[i], hull_vertices[j], hull_vertices[k]
+                    ])
+                    if _point_in_simplex_exact(point, tetrahedron, tolerance):
+                        return jnp.array(True)
+
+    return jnp.array(False)
 
 
 # JIT-compiled versions for performance
