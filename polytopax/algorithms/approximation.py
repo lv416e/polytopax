@@ -139,11 +139,13 @@ def batched_approximate_hull(
         ... ])
         >>> hulls, indices = batched_approximate_hull(batch_points)
     """
+    # vmap with explicit axis specification for kwargs
+    # Most kwargs (like random_key, n_directions) are not batched (axis=None)
     return jax.vmap(
-        approximate_convex_hull,
-        in_axes=(0,),
+        lambda points: approximate_convex_hull(points, **kwargs),
+        in_axes=0,
         out_axes=(0, 0)
-    )(batch_points, **kwargs)
+    )(batch_points)
 
 
 def soft_argmax_selection(

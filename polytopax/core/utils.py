@@ -38,9 +38,20 @@ def validate_point_cloud(points: Array) -> Array:
     if points.shape[-2] < 1:
         raise ValueError(f"Must have at least 1 point, got {points.shape[-2]}")
 
-    # Note: Skip numerical validation when tracing for JIT compilation
-    # JAX traced arrays cannot be evaluated for concrete boolean values
-    # In production, consider using jax.debug.print for warning messages
+    # Numerical validation - check for NaN and infinite values
+    # Skip validation during JAX transformations (jit, vmap, etc.)
+    # since traced arrays cannot be evaluated for concrete boolean values
+    try:
+        # This will work for concrete arrays but fail for traced arrays
+        if jnp.any(jnp.isnan(points)):
+            raise ValueError("Point cloud contains NaN values")
+        
+        if jnp.any(jnp.isinf(points)):
+            raise ValueError("Point cloud contains infinite values")
+    except jax.errors.TracerBoolConversionError:
+        # During JAX transformations, skip numerical validation
+        # Validation will happen when the function is actually called with concrete values
+        pass
 
     return points
 

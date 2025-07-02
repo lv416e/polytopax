@@ -41,6 +41,16 @@ def point_in_convex_hull(
     """
     point = jnp.asarray(point)
     hull_vertices = validate_point_cloud(hull_vertices)
+    
+    # Validate dimensional consistency
+    if point.ndim == 0:
+        raise ValueError("Point must have at least 1 dimension")
+    
+    point_dim = point.shape[-1] if point.ndim > 0 else 1
+    hull_dim = hull_vertices.shape[-1]
+    
+    if point_dim != hull_dim:
+        raise ValueError(f"Point dimension ({point_dim}) must match hull dimension ({hull_dim})")
 
     if method == "linear_programming":
         return _point_in_hull_lp(point, hull_vertices, tolerance)

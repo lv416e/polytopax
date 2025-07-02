@@ -50,7 +50,7 @@ class TestValidatePointCloud:
 
         # Zero-dimensional points
         with pytest.raises(ValueError):
-            validate_point_cloud(jnp.array([[1], [2]]).reshape(2, 0))
+            validate_point_cloud(jnp.empty((2, 0)))
 
     def test_invalid_values(self):
         """Test validation with invalid numerical values."""

@@ -9,14 +9,9 @@ import jax
 import jax.numpy as jnp
 from jax import Array
 
-# Removed direct import to avoid circular dependency
+# Removed direct imports to avoid circular dependency
 # from ..algorithms.approximation import approximate_convex_hull
-from ..operations.predicates import (
-    convex_hull_surface_area,
-    convex_hull_volume,
-    distance_to_convex_hull,
-    point_in_convex_hull,
-)
+# from ..operations.predicates import (...) - Using lazy imports instead
 from .utils import HullVertices, PointCloud, validate_point_cloud
 
 
@@ -79,12 +74,17 @@ class ConvexHull:
 
         def _tree_unflatten(aux_data, children):
             vertices, faces = children
-            return ConvexHull(
+            # Create ConvexHull with basic parameters
+            hull = ConvexHull(
                 vertices=vertices,
                 faces=faces,
-                algorithm_info=aux_data['algorithm_info'],
-                **{k: v for k, v in aux_data.items() if k.startswith('_')}
+                algorithm_info=aux_data['algorithm_info']
             )
+            # Restore cache fields
+            for k, v in aux_data.items():
+                if k.startswith('_'):
+                    setattr(hull, k, v)
+            return hull
 
         # Register the pytree only if not already registered
         try:
@@ -163,6 +163,8 @@ class ConvexHull:
         """
         cache_key = f"volume_{method}"
         if cache_key not in self.__dict__ or self.__dict__[cache_key] is None:
+            # Lazy import to avoid circular dependency
+            from ..operations.predicates import convex_hull_volume
             volume_value = convex_hull_volume(self.vertices, method=method)
             with contextlib.suppress(TypeError, ValueError):
                 # Convert to Python scalar only if not in JAX transformation
@@ -178,6 +180,8 @@ class ConvexHull:
             Surface area of the convex hull
         """
         if self._surface_area_cache is None:
+            # Lazy import to avoid circular dependency
+            from ..operations.predicates import convex_hull_surface_area
             surface_area_value = convex_hull_surface_area(self.vertices, self.faces)
             with contextlib.suppress(TypeError, ValueError):
                 # Convert to Python scalar only if not in JAX transformation
@@ -195,6 +199,8 @@ class ConvexHull:
         Returns:
             True if point is inside or on boundary
         """
+        # Lazy import to avoid circular dependency
+        from ..operations.predicates import point_in_convex_hull
         return bool(point_in_convex_hull(point, self.vertices, tolerance))
 
     def distance_to(self, point: Array) -> float:
@@ -206,6 +212,8 @@ class ConvexHull:
         Returns:
             Signed distance (positive=outside, negative=inside)
         """
+        # Lazy import to avoid circular dependency
+        from ..operations.predicates import distance_to_convex_hull
         return float(distance_to_convex_hull(point, self.vertices))
 
     def centroid(self) -> Array:

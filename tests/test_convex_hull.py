@@ -189,8 +189,9 @@ class TestConvexHullCaching:
         volume2 = hull.volume()
 
         assert volume1 == volume2
-        # Check that cache is actually set
-        assert hull._volume_cache is not None
+        # Check that cache is actually set (default method is simplex_decomposition)
+        assert hasattr(hull, 'volume_simplex_decomposition')
+        assert hull.volume_simplex_decomposition is not None
 
     def test_surface_area_caching(self):
         """Test that surface area is cached properly."""
@@ -381,7 +382,7 @@ class TestConvexHullJAXCompatibility:
             return x
 
         # This should work with the pytree registration
-        jax.tree_map(double_vertices, hull)
+        jax.tree.map(double_vertices, hull)
         # Note: This would fail if ConvexHull wasn't properly registered
 
 
