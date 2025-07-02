@@ -9,7 +9,8 @@ import jax
 import jax.numpy as jnp
 from jax import Array
 
-from ..algorithms.approximation import approximate_convex_hull
+# Removed direct import to avoid circular dependency
+# from ..algorithms.approximation import approximate_convex_hull
 from ..operations.predicates import (
     convex_hull_surface_area,
     convex_hull_volume,
@@ -124,6 +125,8 @@ class ConvexHull:
         points = validate_point_cloud(points)
 
         if algorithm == "approximate":
+            # Lazy import to avoid circular dependency
+            from ..algorithms.approximation import approximate_convex_hull
             hull_vertices, hull_indices = approximate_convex_hull(points, **kwargs)
             algorithm_info = {
                 "algorithm": algorithm,
