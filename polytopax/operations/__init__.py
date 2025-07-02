@@ -1,3 +1,17 @@
-"""Polytope operations for PolytopAX."""
+"""PolytopAX operations module."""
 
-# Operation modules will be imported here as they are implemented
+from .predicates import (
+    point_in_convex_hull,
+    convex_hull_volume,
+    convex_hull_surface_area,
+    distance_to_convex_hull,
+    hausdorff_distance
+)
+
+__all__ = [
+    "point_in_convex_hull",
+    "convex_hull_volume",
+    "convex_hull_surface_area", 
+    "distance_to_convex_hull",
+    "hausdorff_distance"
+]
