@@ -5,29 +5,29 @@ def _get_approximation_functions():
     from .approximation import (
         approximate_convex_hull,
         batched_approximate_hull,
+        improved_approximate_convex_hull,
         multi_resolution_hull,
         progressive_hull_refinement,
-        improved_approximate_convex_hull,
     )
     return approximate_convex_hull, batched_approximate_hull, multi_resolution_hull, progressive_hull_refinement, improved_approximate_convex_hull
 
 def _get_exact_functions():
     from .exact import (
-        quickhull,
+        is_point_inside_triangle_2d,
         orientation_2d,
         point_to_line_distance_2d,
-        is_point_inside_triangle_2d,
+        quickhull,
     )
     from .exact_3d import (
-        quickhull_3d,
+        is_point_inside_tetrahedron_3d,
         orientation_3d,
         point_to_plane_distance_3d,
-        is_point_inside_tetrahedron_3d,
+        quickhull_3d,
     )
     from .graham_scan import (
+        compare_graham_quickhull,
         graham_scan,
         graham_scan_monotone,
-        compare_graham_quickhull,
     )
     return (quickhull, orientation_2d, point_to_line_distance_2d, is_point_inside_triangle_2d,
             quickhull_3d, orientation_3d, point_to_plane_distance_3d, is_point_inside_tetrahedron_3d,
@@ -39,7 +39,7 @@ def __getattr__(name):
     exact_functions = ("quickhull", "orientation_2d", "point_to_line_distance_2d", "is_point_inside_triangle_2d",
                        "quickhull_3d", "orientation_3d", "point_to_plane_distance_3d", "is_point_inside_tetrahedron_3d",
                        "graham_scan", "graham_scan_monotone", "compare_graham_quickhull")
-    
+
     if name in approximation_functions:
         approximate_convex_hull, batched_approximate_hull, multi_resolution_hull, progressive_hull_refinement, improved_approximate_convex_hull = _get_approximation_functions()
         return {
@@ -66,26 +66,26 @@ def __getattr__(name):
             "graham_scan_monotone": graham_scan_monotone,
             "compare_graham_quickhull": compare_graham_quickhull,
         }[name]
-    
+
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 __all__ = [
     # Approximation algorithms (Phase 1 & 2)
     "approximate_convex_hull",
-    "batched_approximate_hull", 
-    "multi_resolution_hull",
-    "progressive_hull_refinement",
-    "improved_approximate_convex_hull",
-    # Exact algorithms (Phase 3)
-    "quickhull",
-    "orientation_2d",
-    "point_to_line_distance_2d",
-    "is_point_inside_triangle_2d",
-    "quickhull_3d",
-    "orientation_3d",
-    "point_to_plane_distance_3d",
-    "is_point_inside_tetrahedron_3d",
+    "batched_approximate_hull",
+    "compare_graham_quickhull",
     "graham_scan",
     "graham_scan_monotone",
-    "compare_graham_quickhull",
+    "improved_approximate_convex_hull",
+    "is_point_inside_tetrahedron_3d",
+    "is_point_inside_triangle_2d",
+    "multi_resolution_hull",
+    "orientation_2d",
+    "orientation_3d",
+    "point_to_line_distance_2d",
+    "point_to_plane_distance_3d",
+    "progressive_hull_refinement",
+    # Exact algorithms (Phase 3)
+    "quickhull",
+    "quickhull_3d",
 ]
