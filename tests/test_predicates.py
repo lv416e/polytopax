@@ -1,6 +1,7 @@
 """Tests for geometric predicates module."""
 
 import math
+
 import jax
 import jax.numpy as jnp
 import numpy as np
