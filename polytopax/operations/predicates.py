@@ -4,16 +4,14 @@ import warnings
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 from jax import Array
 
 from ..core.utils import HullVertices, compute_simplex_volume, validate_point_cloud
 
 
 def point_in_convex_hull(
-    point: Array,
-    hull_vertices: HullVertices,
-    tolerance: float = 1e-8,
-    method: str = "halfspace"
+    point: Array, hull_vertices: HullVertices, tolerance: float = 1e-8, method: str = "halfspace"
 ) -> Array:
     """Test if point is inside convex hull.
 
@@ -62,11 +60,7 @@ def point_in_convex_hull(
         raise ValueError(f"Unknown method: {method}")
 
 
-def _point_in_hull_lp(
-    point: Array,
-    hull_vertices: HullVertices,
-    tolerance: float
-) -> Array:
+def _point_in_hull_lp(point: Array, hull_vertices: HullVertices, tolerance: float) -> Array:
     """Linear programming based point-in-hull test."""
     n_vertices = hull_vertices.shape[-2]
     dim = hull_vertices.shape[-1]
@@ -84,11 +78,7 @@ def _point_in_hull_lp(
     max_coords = jnp.max(hull_vertices, axis=-2)
 
     # Quick bounding box test
-    in_bbox = jnp.all(
-        (point >= min_coords - tolerance) &
-        (point <= max_coords + tolerance),
-        axis=-1
-    )
+    in_bbox = jnp.all((point >= min_coords - tolerance) & (point <= max_coords + tolerance), axis=-1)
 
     # For points outside bounding box, return False
     # For points inside bounding box, do more detailed test
@@ -97,25 +87,19 @@ def _point_in_hull_lp(
         # This is a heuristic and not always accurate for complex hulls
         center = jnp.mean(vertices, axis=-2)
         distances = jnp.linalg.norm(vertices - center, axis=-1)
-        closest_indices = jnp.argsort(distances)[:dim + 1]
+        closest_indices = jnp.argsort(distances)[: dim + 1]
         simplex = vertices[closest_indices]
         return _point_in_simplex(p, simplex, tolerance)
 
     # Apply detailed test only where bounding box test passed
     detailed_result = jax.lax.cond(
-        jnp.any(in_bbox),
-        lambda: detailed_test(point, hull_vertices),
-        lambda: jnp.array(False, dtype=bool)
+        jnp.any(in_bbox), lambda: detailed_test(point, hull_vertices), lambda: jnp.array(False, dtype=bool)
     )
 
-    return in_bbox & detailed_result
+    return jnp.logical_and(in_bbox, detailed_result)
 
 
-def _point_in_hull_barycentric(
-    point: Array,
-    hull_vertices: HullVertices,
-    tolerance: float
-) -> Array:
+def _point_in_hull_barycentric(point: Array, hull_vertices: HullVertices, tolerance: float) -> Array:
     """Barycentric coordinate based point-in-hull test."""
     n_vertices = hull_vertices.shape[-2]
     dim = hull_vertices.shape[-1]
@@ -129,21 +113,17 @@ def _point_in_hull_barycentric(
     else:
         # Over-determined case - decompose into simplices
         # For simplicity, use the first (dim+1) vertices
-        simplex = hull_vertices[..., :dim+1, :]
+        simplex = hull_vertices[..., : dim + 1, :]
         return _point_in_simplex(point, simplex, tolerance)
 
 
-def _point_in_simplex(
-    point: Array,
-    simplex_vertices: Array,
-    tolerance: float
-) -> Array:
+def _point_in_simplex(point: Array, simplex_vertices: Array, tolerance: float) -> Array:
     """Test if point is inside simplex using barycentric coordinates."""
     n_vertices = simplex_vertices.shape[-2]
     dim = simplex_vertices.shape[-1]
 
     if n_vertices != dim + 1:
-        raise ValueError(f"Simplex must have {dim+1} vertices, got {n_vertices}")
+        raise ValueError(f"Simplex must have {dim + 1} vertices, got {n_vertices}")
 
     # Solve for barycentric coordinates
     # point = sum(λᵢ * vᵢ) with sum(λᵢ) = 1
@@ -156,9 +136,7 @@ def _point_in_simplex(
     # Solve linear system: edge_vectors.T @ lambdas = point_offset
     try:
         # Use least squares for over-determined systems
-        lambdas_rest, residuals, rank, s = jnp.linalg.lstsq(
-            edge_vectors.T, point_offset, rcond=None
-        )
+        lambdas_rest, residuals, rank, s = jnp.linalg.lstsq(edge_vectors.T, point_offset, rcond=None)
 
         # Compute λ₀ = 1 - sum(λᵢ) for i > 0
         lambda0 = 1.0 - jnp.sum(lambdas_rest)
@@ -169,15 +147,12 @@ def _point_in_simplex(
         # Check if all coordinates are non-negative (within tolerance)
         return jnp.all(lambdas >= -tolerance)
 
-    except jnp.linalg.LinAlgError:
+    except np.linalg.LinAlgError:
         # Singular matrix - degenerate simplex
         return jnp.array(False, dtype=bool)
 
 
-def convex_hull_volume(
-    vertices: HullVertices,
-    method: str = "simplex_decomposition"
-) -> Array:
+def convex_hull_volume(vertices: HullVertices, method: str = "simplex_decomposition") -> Array:
     """Compute volume of convex hull (differentiable).
 
     Args:
@@ -228,7 +203,7 @@ def _volume_simplex_decomposition(vertices: HullVertices) -> Array:
     # For more vertices, decompose into simplices
     # Use fan triangulation from first vertex
     v0 = vertices[..., 0, :]
-    total_volume = 0.0
+    total_volume = jnp.array(0.0)
 
     # Create simplices by connecting v0 with each (dim)-dimensional face
     # This is a simplified approach - proper decomposition would use
@@ -237,11 +212,7 @@ def _volume_simplex_decomposition(vertices: HullVertices) -> Array:
     if dim == 2:
         # 2D case: decompose into triangles
         for i in range(1, n_vertices - 1):
-            triangle = jnp.stack([
-                v0,
-                vertices[..., i, :],
-                vertices[..., i + 1, :]
-            ], axis=-2)
+            triangle = jnp.stack([v0, vertices[..., i, :], vertices[..., i + 1, :]], axis=-2)
             total_volume += compute_simplex_volume(triangle)
 
     elif dim == 3:
@@ -249,28 +220,22 @@ def _volume_simplex_decomposition(vertices: HullVertices) -> Array:
         # Use convex hull's faces (simplified approximation)
         for i in range(1, n_vertices - 2):
             for j in range(i + 1, n_vertices - 1):
-                tetrahedron = jnp.stack([
-                    v0,
-                    vertices[..., i, :],
-                    vertices[..., j, :],
-                    vertices[..., j + 1, :]
-                ], axis=-2)
+                tetrahedron = jnp.stack(
+                    [v0, vertices[..., i, :], vertices[..., j, :], vertices[..., j + 1, :]], axis=-2
+                )
                 total_volume += compute_simplex_volume(tetrahedron)
 
     else:
         # Higher dimensions: use approximate method
         # This is not geometrically accurate but provides a reasonable estimate
-        warnings.warn(
-            f"Simplex decomposition for dimension {dim} is approximate",
-            UserWarning, stacklevel=2
-        )
+        warnings.warn(f"Simplex decomposition for dimension {dim} is approximate", UserWarning, stacklevel=2)
         # Use average simplex volume scaled by number of simplices
         if n_vertices >= dim + 1:
-            sample_simplex = vertices[..., :dim+1, :]
+            sample_simplex = vertices[..., : dim + 1, :]
             sample_volume = compute_simplex_volume(sample_simplex)
             # Rough scaling based on number of vertices
             scaling_factor = n_vertices / (dim + 1)
-            total_volume = sample_volume * scaling_factor
+            total_volume = sample_volume * jnp.array(scaling_factor)
 
     return jnp.abs(total_volume)
 
@@ -282,25 +247,19 @@ def _volume_divergence_theorem(vertices: HullVertices) -> Array:
     if dim != 3:
         warnings.warn(
             "Divergence theorem method only works for 3D, falling back to simplex decomposition",
-            UserWarning, stacklevel=2
+            UserWarning,
+            stacklevel=2,
         )
         return _volume_simplex_decomposition(vertices)
 
     # TODO: Implement proper divergence theorem volume calculation
     # This requires computing the surface mesh and applying the theorem
     # For now, fall back to simplex decomposition
-    warnings.warn(
-        "Divergence theorem not yet implemented, using simplex decomposition",
-        UserWarning, stacklevel=2
-    )
+    warnings.warn("Divergence theorem not yet implemented, using simplex decomposition", UserWarning, stacklevel=2)
     return _volume_simplex_decomposition(vertices)
 
 
-def _volume_monte_carlo(
-    vertices: HullVertices,
-    n_samples: int = 10000,
-    random_key: Array | None = None
-) -> Array:
+def _volume_monte_carlo(vertices: HullVertices, n_samples: int = 10000, random_key: Array | None = None) -> Array:
     """Compute volume using Monte Carlo estimation."""
     if random_key is None:
         random_key = jax.random.PRNGKey(42)
@@ -312,12 +271,7 @@ def _volume_monte_carlo(
 
     # Generate random points in bounding box
     dim = vertices.shape[-1]
-    random_points = jax.random.uniform(
-        random_key,
-        (n_samples, dim),
-        minval=min_coords,
-        maxval=max_coords
-    )
+    random_points = jax.random.uniform(random_key, (n_samples, dim), minval=min_coords, maxval=max_coords)
 
     # Test which points are inside the hull
     inside_count = 0
@@ -332,10 +286,7 @@ def _volume_monte_carlo(
     return estimated_volume
 
 
-def convex_hull_surface_area(
-    vertices: HullVertices,
-    faces: Array | None = None
-) -> Array:
+def convex_hull_surface_area(vertices: HullVertices, faces: Array | None = None) -> Array:
     """Compute surface area of convex hull.
 
     Args:
@@ -360,10 +311,7 @@ def convex_hull_surface_area(
         return _compute_3d_surface_area(vertices, faces)
     else:
         # Higher dimensions: approximate using boundary measure
-        warnings.warn(
-            f"Surface area computation for dimension {dim} is approximate",
-            UserWarning, stacklevel=2
-        )
+        warnings.warn(f"Surface area computation for dimension {dim} is approximate", UserWarning, stacklevel=2)
         return _compute_nd_boundary_measure(vertices)
 
 
@@ -380,7 +328,7 @@ def _compute_2d_perimeter(vertices: HullVertices) -> Array:
 
 def _compute_3d_surface_area(vertices: HullVertices, faces: Array) -> Array:
     """Compute surface area of 3D convex hull."""
-    total_area = 0.0
+    total_area = jnp.array(0.0)
 
     # For each triangular face, compute area
     for face_indices in faces:
@@ -410,7 +358,7 @@ def _compute_nd_boundary_measure(vertices: HullVertices) -> Array:
     avg_distance = jnp.mean(distances)
 
     # Scale by number of vertices and dimension
-    boundary_measure = avg_distance * n_vertices * (dim ** 0.5)
+    boundary_measure = avg_distance * n_vertices * jnp.sqrt(dim)
 
     return boundary_measure
 
@@ -447,10 +395,7 @@ def _compute_hull_faces(vertices: HullVertices) -> Array:
         return jnp.array([])
 
 
-def distance_to_convex_hull(
-    point: Array,
-    hull_vertices: HullVertices
-) -> Array:
+def distance_to_convex_hull(point: Array, hull_vertices: HullVertices) -> Array:
     """Compute distance from point to convex hull.
 
     Args:
@@ -467,20 +412,14 @@ def distance_to_convex_hull(
     is_inside = point_in_convex_hull(point, hull_vertices)
 
     # Compute distance to closest vertex (approximation)
-    distances_to_vertices = jnp.linalg.norm(
-        hull_vertices - point[..., None, :],
-        axis=-1
-    )
+    distances_to_vertices = jnp.linalg.norm(hull_vertices - point[..., None, :], axis=-1)
     min_distance = jnp.min(distances_to_vertices, axis=-1)
 
     # Return signed distance
     return jnp.where(is_inside, -min_distance, min_distance)
 
 
-def hausdorff_distance(
-    hull1_vertices: HullVertices,
-    hull2_vertices: HullVertices
-) -> Array:
+def hausdorff_distance(hull1_vertices: HullVertices, hull2_vertices: HullVertices) -> Array:
     """Compute Hausdorff distance between two convex hulls.
 
     The Hausdorff distance is the maximum of:
@@ -495,17 +434,11 @@ def hausdorff_distance(
         Hausdorff distance between the hulls
     """
     # Distance from hull1 vertices to hull2
-    distances_1_to_2 = jnp.array([
-        jnp.abs(distance_to_convex_hull(v, hull2_vertices))
-        for v in hull1_vertices
-    ])
+    distances_1_to_2 = jnp.array([jnp.abs(distance_to_convex_hull(v, hull2_vertices)) for v in hull1_vertices])
     max_dist_1_to_2 = jnp.max(distances_1_to_2)
 
     # Distance from hull2 vertices to hull1
-    distances_2_to_1 = jnp.array([
-        jnp.abs(distance_to_convex_hull(v, hull1_vertices))
-        for v in hull2_vertices
-    ])
+    distances_2_to_1 = jnp.array([jnp.abs(distance_to_convex_hull(v, hull1_vertices)) for v in hull2_vertices])
     max_dist_2_to_1 = jnp.max(distances_2_to_1)
 
     return jnp.maximum(max_dist_1_to_2, max_dist_2_to_1)
@@ -514,6 +447,7 @@ def hausdorff_distance(
 # =============================================================================
 # PHASE 2: IMPROVED VOLUME COMPUTATION METHODS
 # =============================================================================
+
 
 def _volume_shoelace_formula(vertices: HullVertices) -> Array:
     """Compute 2D polygon area using shoelace formula.
@@ -617,9 +551,8 @@ def _volume_determinant_method(vertices: HullVertices) -> Array:
 
 
 def compute_volume_accuracy_metrics(
-    vertices: HullVertices,
-    exact_volume: float | None = None
-) -> dict[str, float | dict | bool]:
+    vertices: HullVertices, exact_volume: float | None = None
+) -> dict[str, float | dict[str, float | None] | bool]:
     """Compute accuracy metrics for volume computation methods.
 
     Args:
@@ -632,7 +565,7 @@ def compute_volume_accuracy_metrics(
     dim = vertices.shape[-1]
 
     # Compute volume with different methods
-    volumes = {}
+    volumes: dict[str, float | None] = {}
 
     try:
         volumes["simplex"] = float(_volume_simplex_decomposition(vertices))
@@ -654,20 +587,20 @@ def compute_volume_accuracy_metrics(
     valid_volumes = [v for v in volumes.values() if v is not None]
 
     if len(valid_volumes) >= 2:
-        mean_volume = jnp.mean(jnp.array(valid_volumes))
-        std_volume = jnp.std(jnp.array(valid_volumes))
-        coefficient_of_variation = std_volume / mean_volume if mean_volume > 0 else float('inf')
+        mean_volume = float(jnp.mean(jnp.array(valid_volumes)))
+        std_volume = float(jnp.std(jnp.array(valid_volumes)))
+        coefficient_of_variation = std_volume / mean_volume if mean_volume > 0 else float("inf")
     else:
         mean_volume = valid_volumes[0] if valid_volumes else 0.0
         std_volume = 0.0
         coefficient_of_variation = 0.0
 
-    metrics = {
+    metrics: dict[str, float | dict[str, float | None] | bool] = {
         "volumes": volumes,
         "mean_volume": float(mean_volume),
         "std_volume": float(std_volume),
         "coefficient_of_variation": float(coefficient_of_variation),
-        "method_consistency": float(1.0 - coefficient_of_variation) if coefficient_of_variation < 1 else 0.0
+        "method_consistency": float(1.0 - coefficient_of_variation) if coefficient_of_variation < 1 else 0.0,
     }
 
     # Add accuracy metrics if exact volume is provided
@@ -686,11 +619,8 @@ def compute_volume_accuracy_metrics(
 # PHASE 2: IMPROVED POINT CONTAINMENT METHODS
 # =============================================================================
 
-def _point_in_hull_halfspace(
-    point: Array,
-    hull_vertices: HullVertices,
-    tolerance: float
-) -> Array:
+
+def _point_in_hull_halfspace(point: Array, hull_vertices: HullVertices, tolerance: float) -> Array:
     """Improved halfspace-based point-in-hull test.
 
     This method computes the convex hull faces and checks if the point
@@ -714,11 +644,7 @@ def _point_in_hull_halfspace(
         return _point_in_hull_barycentric_robust(point, hull_vertices, tolerance)
 
 
-def _point_in_hull_2d_robust(
-    point: Array,
-    hull_vertices: HullVertices,
-    tolerance: float
-) -> Array:
+def _point_in_hull_2d_robust(point: Array, hull_vertices: HullVertices, tolerance: float) -> Array:
     """Robust 2D point-in-polygon test using winding number."""
     n_vertices = hull_vertices.shape[-2]
 
@@ -735,7 +661,7 @@ def _point_in_hull_2d_robust(
     sorted_vertices = hull_vertices[sorted_indices]
 
     # Use winding number algorithm
-    winding_number = 0.0
+    winding_number = jnp.array(0.0)
 
     for i in range(n_vertices):
         v1 = sorted_vertices[i] - point
@@ -765,11 +691,7 @@ def _point_in_hull_2d_robust(
     return abs_winding > jnp.pi  # Threshold for "inside"
 
 
-def _point_in_hull_3d_robust(
-    point: Array,
-    hull_vertices: HullVertices,
-    tolerance: float
-) -> Array:
+def _point_in_hull_3d_robust(point: Array, hull_vertices: HullVertices, tolerance: float) -> Array:
     """Robust 3D point-in-hull test."""
     n_vertices = hull_vertices.shape[-2]
 
@@ -787,12 +709,7 @@ def _point_in_hull_3d_robust(
         for j in range(i + 1, n_vertices - 1):
             for k in range(j + 1, n_vertices):
                 # Form tetrahedron with centroid and vertices i, j, k
-                tetrahedron = jnp.array([
-                    centroid,
-                    hull_vertices[i],
-                    hull_vertices[j],
-                    hull_vertices[k]
-                ])
+                tetrahedron = jnp.array([centroid, hull_vertices[i], hull_vertices[j], hull_vertices[k]])
 
                 # Check if point is in this tetrahedron using barycentric coordinates
                 if _point_in_tetrahedron(point, tetrahedron, tolerance):
@@ -801,11 +718,7 @@ def _point_in_hull_3d_robust(
     return jnp.array(False)
 
 
-def _point_in_tetrahedron(
-    point: Array,
-    tetrahedron_vertices: Array,
-    tolerance: float
-) -> Array:
+def _point_in_tetrahedron(point: Array, tetrahedron_vertices: Array, tolerance: float) -> Array:
     """Test if point is inside tetrahedron using barycentric coordinates."""
     # Solve for barycentric coordinates
     # point = λ₀*v₀ + λ₁*v₁ + λ₂*v₂ + λ₃*v₃ where Σλᵢ = 1
@@ -824,16 +737,12 @@ def _point_in_tetrahedron(
         # Point is inside if all barycentric coordinates are non-negative
         return jnp.all(all_lambdas >= -tolerance)
 
-    except jnp.linalg.LinAlgError:
+    except np.linalg.LinAlgError:
         # Singular matrix - degenerate tetrahedron
         return jnp.array(False)
 
 
-def _point_in_hull_barycentric_robust(
-    point: Array,
-    hull_vertices: HullVertices,
-    tolerance: float
-) -> Array:
+def _point_in_hull_barycentric_robust(point: Array, hull_vertices: HullVertices, tolerance: float) -> Array:
     """Improved barycentric coordinate based point-in-hull test."""
     n_vertices, dim = hull_vertices.shape[-2], hull_vertices.shape[-1]
 
@@ -849,16 +758,12 @@ def _point_in_hull_barycentric_robust(
         return _point_in_hull_simplex_decomposition(point, hull_vertices, tolerance)
 
 
-def _point_in_simplex_exact(
-    point: Array,
-    simplex_vertices: Array,
-    tolerance: float
-) -> Array:
+def _point_in_simplex_exact(point: Array, simplex_vertices: Array, tolerance: float) -> Array:
     """Exact point-in-simplex test using barycentric coordinates."""
     n_vertices, dim = simplex_vertices.shape[-2], simplex_vertices.shape[-1]
 
     if n_vertices != dim + 1:
-        raise ValueError(f"Simplex in {dim}D should have {dim+1} vertices, got {n_vertices}")
+        raise ValueError(f"Simplex in {dim}D should have {dim + 1} vertices, got {n_vertices}")
 
     # Set up barycentric coordinate system
     v0 = simplex_vertices[0]
@@ -875,17 +780,13 @@ def _point_in_simplex_exact(
         # Point is inside if all coordinates are non-negative (within tolerance)
         return jnp.all(all_lambdas >= -tolerance)
 
-    except jnp.linalg.LinAlgError:
+    except np.linalg.LinAlgError:
         # Degenerate simplex
         distances = jnp.linalg.norm(simplex_vertices - point, axis=-1)
         return jnp.min(distances) <= tolerance
 
 
-def _point_in_hull_simplex_decomposition(
-    point: Array,
-    hull_vertices: HullVertices,
-    tolerance: float
-) -> Array:
+def _point_in_hull_simplex_decomposition(point: Array, hull_vertices: HullVertices, tolerance: float) -> Array:
     """Test point containment by decomposing hull into simplices."""
     n_vertices, dim = hull_vertices.shape[-2], hull_vertices.shape[-1]
 
@@ -906,9 +807,7 @@ def _point_in_hull_simplex_decomposition(
         for i in range(n_vertices - 2):
             for j in range(i + 1, n_vertices - 1):
                 for k in range(j + 1, n_vertices):
-                    tetrahedron = jnp.array([
-                        centroid, hull_vertices[i], hull_vertices[j], hull_vertices[k]
-                    ])
+                    tetrahedron = jnp.array([centroid, hull_vertices[i], hull_vertices[j], hull_vertices[k]])
                     if _point_in_simplex_exact(point, tetrahedron, tolerance):
                         return jnp.array(True)
 
@@ -916,8 +815,8 @@ def _point_in_hull_simplex_decomposition(
 
 
 # JIT-compiled versions for performance
-point_in_convex_hull_jit = jax.jit(point_in_convex_hull, static_argnames=['method'])
-convex_hull_volume_jit = jax.jit(convex_hull_volume, static_argnames=['method'])
+point_in_convex_hull_jit = jax.jit(point_in_convex_hull, static_argnames=["method"])
+convex_hull_volume_jit = jax.jit(convex_hull_volume, static_argnames=["method"])
 convex_hull_surface_area_jit = jax.jit(convex_hull_surface_area)
 distance_to_convex_hull_jit = jax.jit(distance_to_convex_hull)
 hausdorff_distance_jit = jax.jit(hausdorff_distance)

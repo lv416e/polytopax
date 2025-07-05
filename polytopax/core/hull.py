@@ -1,6 +1,5 @@
 """Convex hull computation functions - unified interface."""
 
-
 import jax
 from jax import Array
 
@@ -11,11 +10,7 @@ from ..operations.predicates import point_in_convex_hull as point_in_hull
 from .utils import HullVertices, PointCloud, validate_point_cloud
 
 
-def convex_hull(
-    points: PointCloud,
-    algorithm: str = "approximate",
-    **kwargs
-) -> HullVertices:
+def convex_hull(points: PointCloud, algorithm: str = "approximate", **kwargs) -> HullVertices:
     """Compute convex hull of a set of points.
 
     This is the main unified interface for convex hull computation.
@@ -49,27 +44,23 @@ def convex_hull(
 
     if algorithm == "approximate":
         from ..algorithms.approximation import approximate_convex_hull as _approximate_convex_hull
+
         hull_vertices, _ = _approximate_convex_hull(points, **kwargs)
         return hull_vertices
     elif algorithm == "quickhull":
         raise NotImplementedError(
-            "Quickhull algorithm will be implemented in Phase 2. "
-            "Use algorithm='approximate' for now."
+            "Quickhull algorithm will be implemented in Phase 2. Use algorithm='approximate' for now."
         )
     elif algorithm == "graham_scan":
         raise NotImplementedError(
-            "Graham scan algorithm will be implemented in Phase 2. "
-            "Use algorithm='approximate' for now."
+            "Graham scan algorithm will be implemented in Phase 2. Use algorithm='approximate' for now."
         )
     else:
         raise ValueError(f"Unknown algorithm: {algorithm}")
 
 
 def approximate_convex_hull(
-    points: Array,
-    n_directions: int = 100,
-    method: str = "uniform",
-    random_seed: int = 0
+    points: Array, n_directions: int = 100, method: str = "uniform", random_seed: int = 0
 ) -> tuple[Array, Array]:
     """Differentiable approximate convex hull computation.
 
@@ -93,12 +84,13 @@ def approximate_convex_hull(
     # Convert to new API parameters
     random_key = jax.random.PRNGKey(random_seed) if random_seed else None
 
+    from typing import cast
+
     from ..algorithms.approximation import approximate_convex_hull as _approximate_convex_hull
+    from ..core.utils import SamplingMethod
+
     return _approximate_convex_hull(
-        points,
-        n_directions=n_directions,
-        method=method,
-        random_key=random_key
+        points, n_directions=n_directions, method=cast(SamplingMethod, method), random_key=random_key
     )
 
 
@@ -109,10 +101,10 @@ __all__ = [
     "distance_to_hull",
     "hull_surface_area",
     "hull_volume",
-    "point_in_hull"
+    "point_in_hull",
 ]
 
 
 # JIT-compiled versions for performance
-convex_hull_jit = jax.jit(convex_hull, static_argnames=['algorithm'])
-approximate_convex_hull_jit = jax.jit(approximate_convex_hull, static_argnames=['method'])
+convex_hull_jit = jax.jit(convex_hull, static_argnames=["algorithm"])
+approximate_convex_hull_jit = jax.jit(approximate_convex_hull, static_argnames=["method"])

@@ -5,7 +5,6 @@ than QuickHull for 2D cases, especially when the number of hull vertices is smal
 relative to the total number of points.
 """
 
-
 import jax
 import jax.numpy as jnp
 from jax import Array
@@ -17,10 +16,7 @@ from ..core.utils import (
 )
 
 
-def graham_scan(
-    points: PointCloud,
-    tolerance: float = 1e-12
-) -> tuple[HullVertices, Array]:
+def graham_scan(points: PointCloud, tolerance: float = 1e-12) -> tuple[HullVertices, Array]:
     """Graham Scan algorithm for 2D convex hull computation.
 
     The Graham Scan algorithm works by:
@@ -78,18 +74,12 @@ def _find_starting_point(points: Array) -> int:
     # Break ties by choosing leftmost (minimum x)
     candidate_points = points[candidates]
     min_x_among_candidates = jnp.min(candidate_points[:, 0])
-    leftmost_candidates = jnp.where(
-        jnp.abs(candidate_points[:, 0] - min_x_among_candidates) < 1e-12
-    )[0]
+    leftmost_candidates = jnp.where(jnp.abs(candidate_points[:, 0] - min_x_among_candidates) < 1e-12)[0]
 
     return int(candidates[leftmost_candidates[0]])
 
 
-def _sort_points_by_angle(
-    points: Array,
-    start_index: int,
-    tolerance: float
-) -> Array:
+def _sort_points_by_angle(points: Array, start_index: int, tolerance: float) -> Array:
     """Sort points by polar angle with respect to the starting point."""
     start_point = points[start_index]
     n_points = points.shape[0]
@@ -120,19 +110,12 @@ def _sort_points_by_angle(
     sort_indices = jnp.lexsort((distances, angles))
 
     # Return indices in sorted order, with starting point first
-    sorted_indices = jnp.concatenate([
-        jnp.array([start_index]),
-        indices[sort_indices]
-    ])
+    sorted_indices = jnp.concatenate([jnp.array([start_index]), indices[sort_indices]])
 
     return sorted_indices
 
 
-def _build_hull_graham(
-    points: Array,
-    sorted_indices: Array,
-    tolerance: float
-) -> Array:
+def _build_hull_graham(points: Array, sorted_indices: Array, tolerance: float) -> Array:
     """Build the convex hull using the Graham Scan algorithm."""
     n_points = len(sorted_indices)
 
@@ -152,7 +135,7 @@ def _build_hull_graham(
             # Check if the last three points make a left turn
             p1 = points[hull[-2]]  # Second-to-last point
             p2 = points[hull[-1]]  # Last point
-            p3 = current_point     # Current point
+            p3 = current_point  # Current point
 
             cross_product = _cross_product_2d(p2 - p1, p3 - p1)
 
@@ -169,7 +152,7 @@ def _build_hull_graham(
     return jnp.array(hull)
 
 
-def _cross_product_2d(v1: Array, v2: Array) -> float:
+def _cross_product_2d(v1: Array, v2: Array) -> Array:
     """Compute 2D cross product (determinant)."""
     return v1[0] * v2[1] - v1[1] * v2[0]
 
@@ -196,10 +179,8 @@ def _ccw(p1: Array, p2: Array, p3: Array, tolerance: float = 1e-12) -> int:
 # OPTIMIZED VARIANTS
 # =============================================================================
 
-def graham_scan_monotone(
-    points: PointCloud,
-    tolerance: float = 1e-12
-) -> tuple[HullVertices, Array]:
+
+def graham_scan_monotone(points: PointCloud, tolerance: float = 1e-12) -> tuple[HullVertices, Array]:
     """Monotone chain variant of Graham Scan (Andrew's algorithm).
 
     This variant builds the upper and lower hulls separately, which can be
@@ -228,20 +209,20 @@ def graham_scan_monotone(
     # Build lower hull
     lower_hull: list[int] = []
     for i in range(n_points):
-        while (len(lower_hull) >= 2 and
-               _ccw(sorted_points[lower_hull[-2]],
-                   sorted_points[lower_hull[-1]],
-                   sorted_points[i], tolerance) <= 0):
+        while (
+            len(lower_hull) >= 2
+            and _ccw(sorted_points[lower_hull[-2]], sorted_points[lower_hull[-1]], sorted_points[i], tolerance) <= 0
+        ):
             lower_hull.pop()
         lower_hull.append(i)
 
     # Build upper hull
     upper_hull: list[int] = []
     for i in range(n_points - 1, -1, -1):
-        while (len(upper_hull) >= 2 and
-               _ccw(sorted_points[upper_hull[-2]],
-                   sorted_points[upper_hull[-1]],
-                   sorted_points[i], tolerance) <= 0):
+        while (
+            len(upper_hull) >= 2
+            and _ccw(sorted_points[upper_hull[-2]], sorted_points[upper_hull[-1]], sorted_points[i], tolerance) <= 0
+        ):
             upper_hull.pop()
         upper_hull.append(i)
 
@@ -261,10 +242,8 @@ def graham_scan_monotone(
 # COMPARISON UTILITIES
 # =============================================================================
 
-def compare_graham_quickhull(
-    points: PointCloud,
-    tolerance: float = 1e-12
-) -> dict:
+
+def compare_graham_quickhull(points: PointCloud, tolerance: float = 1e-12) -> dict:
     """Compare Graham Scan and QuickHull results for verification."""
     from .exact import quickhull
 
@@ -282,7 +261,7 @@ def compare_graham_quickhull(
         "vertices_match": graham_set == quickhull_set,
         "symmetric_difference": graham_set.symmetric_difference(quickhull_set),
         "graham_indices": graham_indices,
-        "quickhull_indices": quickhull_indices
+        "quickhull_indices": quickhull_indices,
     }
 
 

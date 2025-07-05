@@ -13,5 +13,5 @@ __all__ = [
     "convex_hull_volume",
     "distance_to_convex_hull",
     "hausdorff_distance",
-    "point_in_convex_hull"
+    "point_in_convex_hull",
 ]

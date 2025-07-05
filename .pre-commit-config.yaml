@@ -17,10 +17,10 @@ repos:
         args: [
             "--fix",
             "--exit-non-zero-on-fix",
-            "--target-version=py312",
+            "--target-version=py310",
             "--line-length=100",
             "--select=E,F,W,I,N,D,UP,B,C4,SIM,RUF",
-            "--ignore=N803,N806,D203,D212,E501",
+            "--ignore=N803,N806,D203,D212,E501,UP040",
         ]
 
 -   repo: https://github.com/pre-commit/mirrors-mypy
@@ -36,7 +36,7 @@ repos:
         ]
         exclude: ^(docs/|tests/|examples/)
         args: [
-            "--python-version=3.12",
+            "--python-version=3.10",
             "--warn-return-any",
             "--warn-unused-configs",
             "--check-untyped-defs",
