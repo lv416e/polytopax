@@ -26,7 +26,7 @@ Examples:
         >>> grad_fn = jax.grad(lambda pts: ptx.ConvexHull.from_points(pts).volume())
 """
 
-__version__ = "0.1.0"
+__version__ = "0.0.1"
 __author__ = "PolytopAX Development Team"
 
 # Core imports - using lazy loading to avoid circular imports
