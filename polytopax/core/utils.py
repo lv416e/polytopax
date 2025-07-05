@@ -1,16 +1,16 @@
 """Core utility functions for PolytopAX."""
 
 import warnings
-from typing import Literal
+from typing import Literal, TypeAlias
 
 import jax
 import jax.numpy as jnp
 from jax import Array
 
 # Type aliases
-PointCloud = Array  # shape: (..., n_points, dimension)
-HullVertices = Array  # shape: (n_vertices, dimension)
-DirectionVectors = Array  # shape: (n_directions, dimension)
+PointCloud: TypeAlias = Array  # shape: (..., n_points, dimension)
+HullVertices: TypeAlias = Array  # shape: (n_vertices, dimension)
+DirectionVectors: TypeAlias = Array  # shape: (n_directions, dimension)
 SamplingMethod = Literal["uniform", "icosphere", "adaptive"]
 
 
@@ -57,10 +57,7 @@ def validate_point_cloud(points: Array) -> Array:
 
 
 def generate_direction_vectors(
-    dimension: int,
-    n_directions: int,
-    method: SamplingMethod = "uniform",
-    random_key: Array | None = None
+    dimension: int, n_directions: int, method: SamplingMethod = "uniform", random_key: Array | None = None
 ) -> DirectionVectors:
     """Generate direction vectors for sampling.
 
@@ -98,7 +95,7 @@ def generate_direction_vectors(
         norms = jnp.where(norms < 1e-12, 1.0, norms)
         directions = directions / norms
 
-        return directions
+        return directions  # type: ignore[no-any-return]
 
     elif method == "icosphere":
         if dimension != 3:
@@ -113,8 +110,7 @@ def generate_direction_vectors(
         # For now, use uniform sampling as placeholder
         # TODO: Implement proper adaptive sampling in future versions
         warnings.warn(
-            "Adaptive sampling not yet implemented, falling back to uniform sampling",
-            UserWarning, stacklevel=2
+            "Adaptive sampling not yet implemented, falling back to uniform sampling", UserWarning, stacklevel=2
         )
         return generate_direction_vectors(dimension, n_directions, "uniform", random_key)
 
@@ -135,11 +131,23 @@ def _generate_icosphere_directions(n_directions: int) -> DirectionVectors:
     phi = (1.0 + jnp.sqrt(5.0)) / 2.0  # Golden ratio
 
     # Icosahedron vertices
-    vertices = jnp.array([
-        [-1,  phi,  0], [ 1,  phi,  0], [-1, -phi,  0], [ 1, -phi,  0],
-        [ 0, -1,  phi], [ 0,  1,  phi], [ 0, -1, -phi], [ 0,  1, -phi],
-        [ phi,  0, -1], [ phi,  0,  1], [-phi,  0, -1], [-phi,  0,  1]
-    ], dtype=jnp.float32)
+    vertices = jnp.array(
+        [
+            [-1, phi, 0],
+            [1, phi, 0],
+            [-1, -phi, 0],
+            [1, -phi, 0],
+            [0, -1, phi],
+            [0, 1, phi],
+            [0, -1, -phi],
+            [0, 1, -phi],
+            [phi, 0, -1],
+            [phi, 0, 1],
+            [-phi, 0, -1],
+            [-phi, 0, 1],
+        ],
+        dtype=jnp.float32,
+    )
 
     # Normalize vertices
     vertices = vertices / jnp.linalg.norm(vertices, axis=1, keepdims=True)
@@ -165,13 +173,10 @@ def _generate_icosphere_directions(n_directions: int) -> DirectionVectors:
     # Truncate to exact number if we have too many
     directions = directions[:n_directions]
 
-    return directions
+    return directions  # type: ignore[no-any-return]
 
 
-def robust_orientation_test(
-    points: Array,
-    tolerance: float = 1e-12
-) -> Array:
+def robust_orientation_test(points: Array, tolerance: float = 1e-12) -> Array:
     """Robust geometric orientation test.
 
     Implements numerically stable orientation tests for geometric predicates.
@@ -202,8 +207,9 @@ def robust_orientation_test(
     if points.shape[-1] == 2 and points.shape[-2] >= 3:
         # 2D orientation test
         p0, p1, p2 = points[..., 0, :], points[..., 1, :], points[..., 2, :]
-        det = (p1[..., 0] - p0[..., 0]) * (p2[..., 1] - p0[..., 1]) - \
-              (p1[..., 1] - p0[..., 1]) * (p2[..., 0] - p0[..., 0])
+        det = (p1[..., 0] - p0[..., 0]) * (p2[..., 1] - p0[..., 1]) - (p1[..., 1] - p0[..., 1]) * (
+            p2[..., 0] - p0[..., 0]
+        )
         return jnp.abs(det) > tolerance
 
     elif points.shape[-1] == 3 and points.shape[-2] >= 4:
@@ -284,10 +290,7 @@ def project_to_simplex(point: Array, vertices: Array) -> tuple[Array, Array]:
     return projected_point, barycentric
 
 
-def remove_duplicate_points(
-    points: Array,
-    tolerance: float = 1e-10
-) -> tuple[Array, Array]:
+def remove_duplicate_points(points: Array, tolerance: float = 1e-10) -> tuple[Array, Array]:
     """Remove duplicate points within tolerance.
 
     Args:
@@ -337,13 +340,10 @@ def scale_to_unit_ball(points: Array) -> tuple[Array, tuple[Array, float]]:
 
     scaled_points = centered_points / scale_factor
 
-    return scaled_points, (center.squeeze(-2), scale_factor)
+    return scaled_points, (center.squeeze(-2), float(scale_factor))
 
 
-def unscale_from_unit_ball(
-    points: Array,
-    transform_params: tuple[Array, float]
-) -> Array:
+def unscale_from_unit_ball(points: Array, transform_params: tuple[Array, float]) -> Array:
     """Reverse scaling from unit ball.
 
     Args:

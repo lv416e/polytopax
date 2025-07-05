@@ -1,6 +1,5 @@
 """Differentiable approximate convex hull algorithms."""
 
-
 import jax
 import jax.numpy as jnp
 from jax import Array
@@ -22,7 +21,7 @@ def approximate_convex_hull(
     temperature: float = 0.1,
     random_key: Array | None = None,
     remove_duplicates: bool = True,
-    tolerance: float = 1e-10
+    tolerance: float = 1e-10,
 ) -> tuple[HullVertices, Array]:
     """Differentiable approximate convex hull computation.
 
@@ -80,15 +79,12 @@ def approximate_convex_hull(
 
     # Generate direction vectors
     directions = generate_direction_vectors(
-        dimension=dim,
-        n_directions=n_directions,
-        method=method,
-        random_key=random_key
+        dimension=dim, n_directions=n_directions, method=method, random_key=random_key
     )
 
     # Compute projection scores for all directions
     # Shape: (..., n_points, n_directions)
-    scores = jnp.dot(points, directions.T)
+    scores = jnp.dot(points, jnp.transpose(directions))
 
     # Apply soft selection for differentiability
     # Shape: (..., n_points, n_directions)
@@ -96,10 +92,7 @@ def approximate_convex_hull(
 
     # Compute soft hull points as weighted combinations
     # Shape: (..., n_directions, dim)
-    soft_hull_points = jnp.sum(
-        weights[..., :, :, None] * points[..., :, None, :],
-        axis=-3
-    )
+    soft_hull_points = jnp.sum(weights[..., :, :, None] * points[..., :, None, :], axis=-3)
 
     # For indices, use hard selection (non-differentiable but needed for indexing)
     hard_indices = jnp.argmax(scores, axis=-2)  # Shape: (..., n_directions)
@@ -110,19 +103,14 @@ def approximate_convex_hull(
 
     # Remove duplicates if requested
     if remove_duplicates:
-        hull_vertices, unique_indices = remove_duplicate_points(
-            hull_vertices, tolerance=tolerance
-        )
+        hull_vertices, unique_indices = remove_duplicate_points(hull_vertices, tolerance=tolerance)
         # Update indices to reflect unique selection
         hull_indices = hull_indices[..., unique_indices]
 
     return hull_vertices, hull_indices
 
 
-def batched_approximate_hull(
-    batch_points: Array,
-    **kwargs
-) -> tuple[Array, Array]:
+def batched_approximate_hull(batch_points: Array, **kwargs) -> tuple[Array, Array]:
     """Batch processing version of approximate_convex_hull.
 
     Args:
@@ -141,18 +129,13 @@ def batched_approximate_hull(
     """
     # vmap with explicit axis specification for kwargs
     # Most kwargs (like random_key, n_directions) are not batched (axis=None)
-    return jax.vmap(
-        lambda points: approximate_convex_hull(points, **kwargs),
-        in_axes=0,
-        out_axes=(0, 0)
-    )(batch_points)
+    result = jax.vmap(lambda points: approximate_convex_hull(points, **kwargs), in_axes=0, out_axes=(0, 0))(
+        batch_points
+    )
+    return result  # type: ignore[no-any-return]
 
 
-def soft_argmax_selection(
-    scores: Array,
-    temperature: float,
-    points: Array
-) -> tuple[Array, Array]:
+def soft_argmax_selection(scores: Array, temperature: float, points: Array) -> tuple[Array, Array]:
     """Differentiable soft selection of extreme points.
 
     This function replaces the non-differentiable argmax operation with
@@ -185,11 +168,8 @@ def soft_argmax_selection(
 
 
 def adaptive_temperature_control(
-    scores: Array,
-    target_sparsity: float = 0.1,
-    min_temperature: float = 0.01,
-    max_temperature: float = 10.0
-) -> float:
+    scores: Array, target_sparsity: float = 0.1, min_temperature: float = 0.01, max_temperature: float = 10.0
+) -> Array:
     """Adaptive temperature control for soft selection.
 
     Automatically adjusts the softmax temperature to achieve a target
@@ -213,11 +193,7 @@ def adaptive_temperature_control(
 
     # Higher variance → lower temperature (more confident selection)
     # Lower variance → higher temperature (more uniform selection)
-    temperature = jnp.clip(
-        1.0 / (score_std + 1e-6),
-        min_temperature,
-        max_temperature
-    )
+    temperature = jnp.clip(1.0 / (score_std + 1e-6), min_temperature, max_temperature)
 
     return temperature
 
@@ -229,7 +205,7 @@ def multi_resolution_hull(
     points: PointCloud,
     resolution_levels: list | None = None,
     method: SamplingMethod = "uniform",
-    random_key: Array | None = None
+    random_key: Array | None = None,
 ) -> list:
     """Compute multi-resolution approximate hulls.
 
@@ -263,10 +239,7 @@ def multi_resolution_hull(
         subkey = jax.random.fold_in(random_key, n_directions)
 
         hull_vertices, hull_indices = approximate_convex_hull(
-            points,
-            n_directions=n_directions,
-            method=method,
-            random_key=subkey
+            points, n_directions=n_directions, method=method, random_key=subkey
         )
 
         hulls.append((hull_vertices, hull_indices))
@@ -280,7 +253,7 @@ def progressive_hull_refinement(
     max_directions: int = 200,
     refinement_steps: int = 3,
     convergence_threshold: float = 1e-4,
-    random_key: Array | None = None
+    random_key: Array | None = None,
 ) -> tuple[HullVertices, Array, dict]:
     """Progressive refinement of approximate hull.
 
@@ -303,19 +276,16 @@ def progressive_hull_refinement(
 
     current_directions = initial_directions
     previous_hull = None
-    refinement_info = {
-        "iterations": [],
-        "converged": False,
-        "final_directions": current_directions
-    }
+    refinement_info = {"iterations": [], "converged": False, "final_directions": current_directions}
+    from typing import cast
+
+    iterations_list = cast(list, refinement_info["iterations"])
 
     for step in range(refinement_steps):
         subkey = jax.random.fold_in(random_key, step)
 
         hull_vertices, hull_indices = approximate_convex_hull(
-            points,
-            n_directions=current_directions,
-            random_key=subkey
+            points, n_directions=current_directions, random_key=subkey
         )
 
         # Check convergence if we have a previous hull
@@ -325,12 +295,14 @@ def progressive_hull_refinement(
             previous_center = jnp.mean(previous_hull, axis=-2)
             center_change = jnp.linalg.norm(current_center - previous_center)
 
-            refinement_info["iterations"].append({
-                "step": step,
-                "directions": current_directions,
-                "center_change": center_change,
-                "n_vertices": hull_vertices.shape[-2]
-            })
+            iterations_list.append(
+                {
+                    "step": step,
+                    "directions": current_directions,
+                    "center_change": center_change,
+                    "n_vertices": hull_vertices.shape[-2],
+                }
+            )
 
             if center_change < convergence_threshold:
                 refinement_info["converged"] = True
@@ -349,12 +321,13 @@ def progressive_hull_refinement(
 
 
 # JIT-compiled versions for performance
-approximate_convex_hull_jit = jax.jit(approximate_convex_hull, static_argnames=['method', 'remove_duplicates'])
+approximate_convex_hull_jit = jax.jit(approximate_convex_hull, static_argnames=["method", "remove_duplicates"])
 
 
 # =============================================================================
 # PHASE 2: IMPROVED ALGORITHM WITH VERTEX COUNT CONSTRAINT
 # =============================================================================
+
 
 def improved_approximate_convex_hull(
     points: PointCloud,
@@ -362,7 +335,7 @@ def improved_approximate_convex_hull(
     method: SamplingMethod = "uniform",
     temperature: float = 0.1,
     random_key: Array | None = None,
-    max_vertices: int | None = None
+    max_vertices: int | None = None,
 ) -> tuple[HullVertices, Array]:
     """Improved differentiable convex hull with vertex count constraint.
 
@@ -391,34 +364,27 @@ def improved_approximate_convex_hull(
     points = validate_point_cloud(points)
     n_points, _dim = points.shape[-2], points.shape[-1]
 
-    max_vertices = n_points if max_vertices is None else min(max_vertices, n_points)
+    max_vertices_int: int = n_points if max_vertices is None else min(max_vertices, n_points)
 
     if random_key is None:
         random_key = jax.random.PRNGKey(0)
 
     # Stage 1: Coarse boundary detection
-    boundary_candidates, candidate_scores = _stage1_coarse_boundary_detection(
-        points, n_directions, method, random_key
-    )
+    boundary_candidates, candidate_scores = _stage1_coarse_boundary_detection(points, n_directions, method, random_key)
 
     # Stage 2: Differentiable refinement with constraints
     refined_vertices, refined_indices = _stage2_constrained_refinement(
-        points, boundary_candidates, candidate_scores, temperature, max_vertices
+        points, boundary_candidates, candidate_scores, temperature, max_vertices_int
     )
 
     # Stage 3: Hard vertex limit enforcement
-    final_vertices, final_indices = _stage3_enforce_vertex_limit(
-        refined_vertices, refined_indices, max_vertices
-    )
+    final_vertices, final_indices = _stage3_enforce_vertex_limit(refined_vertices, refined_indices, max_vertices_int)
 
     return final_vertices, final_indices
 
 
 def _stage1_coarse_boundary_detection(
-    points: Array,
-    n_directions: int,
-    method: SamplingMethod,
-    random_key: Array
+    points: Array, n_directions: int, method: SamplingMethod, random_key: Array
 ) -> tuple[Array, Array]:
     """Stage 1: Coarse boundary detection using direction-based scoring.
 
@@ -442,7 +408,8 @@ def _stage1_coarse_boundary_detection(
     # For each direction, count how often each point is "most extreme"
     boundary_scores = jnp.zeros(n_points)
 
-    for direction in directions:
+    for i in range(directions.shape[0]):
+        direction = directions[i]
         # Project points onto direction
         projections = jnp.dot(points, direction)
 
@@ -461,11 +428,7 @@ def _stage1_coarse_boundary_detection(
 
 
 def _stage2_constrained_refinement(
-    points: Array,
-    boundary_candidates: Array,
-    candidate_scores: Array,
-    temperature: float,
-    max_vertices: int
+    points: Array, boundary_candidates: Array, candidate_scores: Array, temperature: float, max_vertices: int
 ) -> tuple[Array, Array]:
     """Stage 2: Differentiable refinement with vertex count constraints.
 
@@ -508,11 +471,7 @@ def _stage2_constrained_refinement(
     return selected_vertices, selected_indices
 
 
-def _stage3_enforce_vertex_limit(
-    vertices: Array,
-    indices: Array,
-    max_vertices: int
-) -> tuple[Array, Array]:
+def _stage3_enforce_vertex_limit(vertices: Array, indices: Array, max_vertices: int) -> tuple[Array, Array]:
     """Stage 3: Hard enforcement of vertex count constraint.
 
     Final safety check to ensure we never exceed the vertex limit.
@@ -535,10 +494,7 @@ def _stage3_enforce_vertex_limit(
     return vertices[:max_vertices], indices[:max_vertices]
 
 
-def compute_hull_quality_metrics(
-    hull_vertices: Array,
-    original_points: Array
-) -> dict[str, float]:
+def compute_hull_quality_metrics(hull_vertices: Array, original_points: Array) -> dict[str, float]:
     """Compute quality metrics for hull approximation.
 
     Args:
@@ -574,12 +530,9 @@ def compute_hull_quality_metrics(
         "boundary_efficiency": float(boundary_efficiency),
         "n_hull_vertices": int(n_hull),
         "n_original_points": int(n_original),
-        "constraint_satisfied": bool(vertex_ratio <= 1.0)
+        "constraint_satisfied": bool(vertex_ratio <= 1.0),
     }
 
 
 # JIT-compiled version of improved algorithm
-improved_approximate_convex_hull_jit = jax.jit(
-    improved_approximate_convex_hull,
-    static_argnames=['method']
-)
+improved_approximate_convex_hull_jit = jax.jit(improved_approximate_convex_hull, static_argnames=["method"])
