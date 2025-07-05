@@ -12,13 +12,13 @@ def test_package_import():
     """Test that the package can be imported."""
     assert hasattr(polytopax, "__version__")
     assert isinstance(polytopax.__version__, str)
-    assert polytopax.__version__ == "0.1.0"
+    assert polytopax.__version__ == "0.0.1"
 
 
 def test_package_info():
     """Test package information functions."""
     info = polytopax.get_info()
-    assert info["version"] == "0.1.0"
+    assert info["version"] == "0.0.1"
     assert info["core_available"] is True
     assert info["available_functions"] > 0
 

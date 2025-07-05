@@ -5,12 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [UNRELEASED] - 2024/07/02
+## [0.0.1] - 2025-07-05
 
 ### Added
 
 #### Core Implementation
-- **Complete Phase 1 implementation** of PolytopAX v0.1.0
+- **Initial release** of PolytopAX v0.0.1
 - **ConvexHull class** with comprehensive object-oriented API
 - **Differentiable approximate convex hull** algorithms using direction vector sampling
 - **Geometric predicates** including point inclusion, volume, surface area, and distance computations
@@ -86,7 +86,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Notes
 
-This release represents the complete Phase 1 implementation of PolytopAX, providing a solid foundation for differentiable convex hull computation with JAX. The implementation focuses on:
+This initial release provides a solid foundation for differentiable convex hull computation with JAX. The implementation focuses on:
 
 1. **Differentiability**: All operations maintain gradients for optimization applications
 2. **Performance**: JAX JIT compilation and vectorization support
@@ -94,4 +94,4 @@ This release represents the complete Phase 1 implementation of PolytopAX, provid
 4. **Reliability**: Comprehensive testing and robust error handling
 5. **Documentation**: Professional-grade documentation and examples
 
-The implementation is ready for beta testing and feedback from the community. Future releases will focus on performance optimization, additional algorithms, and advanced features.
+The implementation is ready for initial use and community feedback. Future releases will focus on performance optimization, exact algorithms, and advanced features.
