@@ -1,5 +1,7 @@
 """Tests for geometric predicates module."""
 
+import math
+
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -411,7 +413,7 @@ def test_volume_computation_scaling(dimension):
     assert isinstance(volume, float | jnp.ndarray)
     assert volume > 0
     # Volume of unit simplex in d dimensions is 1/d!
-    expected_volume = 1.0 / np.math.factorial(dimension)
+    expected_volume = 1.0 / math.factorial(dimension)
     # Allow for significant approximation error
     assert 0.01 * expected_volume < volume < 10.0 * expected_volume
 

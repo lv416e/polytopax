@@ -18,9 +18,7 @@ from ..core.utils import (
 
 
 def quickhull_3d(
-    points: PointCloud,
-    tolerance: float = 1e-12,
-    max_iterations: int = 1000
+    points: PointCloud, tolerance: float = 1e-12, max_iterations: int = 1000
 ) -> tuple[HullVertices, Array]:
     """3D QuickHull algorithm for exact convex hull computation.
 
@@ -65,13 +63,11 @@ def quickhull_3d(
         [tetrahedron_indices[0], tetrahedron_indices[1], tetrahedron_indices[2]],
         [tetrahedron_indices[0], tetrahedron_indices[1], tetrahedron_indices[3]],
         [tetrahedron_indices[0], tetrahedron_indices[2], tetrahedron_indices[3]],
-        [tetrahedron_indices[1], tetrahedron_indices[2], tetrahedron_indices[3]]
+        [tetrahedron_indices[1], tetrahedron_indices[2], tetrahedron_indices[3]],
     ]
 
     # Build complete hull by processing remaining points
-    hull_faces = _build_3d_hull_recursive(
-        points, initial_faces, tetrahedron_indices, tolerance, max_iterations
-    )
+    hull_faces = _build_3d_hull_recursive(points, initial_faces, tetrahedron_indices, tolerance, max_iterations)
 
     # Extract unique vertices from faces
     hull_vertices, hull_indices = _extract_vertices_from_faces(points, hull_faces)
@@ -79,10 +75,7 @@ def quickhull_3d(
     return hull_vertices, hull_indices
 
 
-def _find_initial_tetrahedron_3d(
-    points: Array,
-    tolerance: float
-) -> list[int]:
+def _find_initial_tetrahedron_3d(points: Array, tolerance: float) -> list[int]:
     """Find four points that form a non-degenerate tetrahedron."""
     n_points = points.shape[0]
 
@@ -156,11 +149,7 @@ def _find_initial_tetrahedron_3d(
     return [*best_pair, third_point, fourth_point]
 
 
-def _handle_degenerate_3d_case(
-    points: Array,
-    extreme_indices: list[int],
-    tolerance: float
-) -> tuple[Array, Array]:
+def _handle_degenerate_3d_case(points: Array, extreme_indices: list[int], tolerance: float) -> tuple[Array, Array]:
     """Handle degenerate cases where points are coplanar or collinear."""
     if len(extreme_indices) <= 2:
         # Collinear case - fall back to 2D QuickHull projected onto appropriate plane
@@ -202,6 +191,7 @@ def _handle_degenerate_3d_case(
 
         # Solve 2D convex hull
         from .exact import _quickhull_2d
+
         hull_2d, hull_indices_2d = _quickhull_2d(points_2d, tolerance)
 
         # Map back to 3D
@@ -215,20 +205,16 @@ def _handle_degenerate_3d_case(
 
 
 def _build_3d_hull_recursive(
-    points: Array,
-    initial_faces: list[list[int]],
-    processed_points: list[int],
-    tolerance: float,
-    max_iterations: int
+    points: Array, initial_faces: list[list[int]], processed_points: list[int], tolerance: float, max_iterations: int
 ) -> list[list[int]]:
     """Build the complete 3D hull by recursively processing faces."""
     # This is a simplified implementation
     # A full 3D QuickHull would require more complex face management
 
     warnings.warn(
-        "Full 3D QuickHull implementation is still in development. "
-        "Using simplified approach.",
-        UserWarning, stacklevel=2
+        "Full 3D QuickHull implementation is still in development. Using simplified approach.",
+        UserWarning,
+        stacklevel=2,
     )
 
     # For now, return the initial tetrahedron faces
@@ -236,16 +222,13 @@ def _build_3d_hull_recursive(
     return initial_faces
 
 
-def _extract_vertices_from_faces(
-    points: Array,
-    faces: list[list[int]]
-) -> tuple[Array, Array]:
+def _extract_vertices_from_faces(points: Array, faces: list[list[int]]) -> tuple[Array, Array]:
     """Extract unique vertices from a list of faces."""
     unique_indices = set()
     for face in faces:
         unique_indices.update(face)
 
-    unique_indices_list = sorted(list(unique_indices))
+    unique_indices_list = sorted(unique_indices)
     hull_indices = jnp.array(unique_indices_list)
     hull_vertices = points[hull_indices]
 
@@ -256,13 +239,8 @@ def _extract_vertices_from_faces(
 # 3D GEOMETRIC PREDICATES
 # =============================================================================
 
-def orientation_3d(
-    p1: Array,
-    p2: Array,
-    p3: Array,
-    p4: Array,
-    tolerance: float = 1e-12
-) -> int:
+
+def orientation_3d(p1: Array, p2: Array, p3: Array, p4: Array, tolerance: float = 1e-12) -> int:
     """Determine orientation of four points in 3D.
 
     Args:
@@ -302,20 +280,12 @@ def orientation_3d(
         return -1  # Negative orientation
 
 
-def point_to_plane_distance_3d(
-    point: Array,
-    plane_point: Array,
-    plane_normal: Array
-) -> float:
+def point_to_plane_distance_3d(point: Array, plane_point: Array, plane_normal: Array) -> Array:
     """Compute signed distance from point to plane in 3D."""
-    return jnp.dot(point - plane_point, plane_normal) / jnp.linalg.norm(plane_normal)
+    return jnp.array(jnp.dot(point - plane_point, plane_normal) / jnp.linalg.norm(plane_normal))
 
 
-def is_point_inside_tetrahedron_3d(
-    point: Array,
-    tetrahedron: Array,
-    tolerance: float = 1e-12
-) -> bool:
+def is_point_inside_tetrahedron_3d(point: Array, tetrahedron: Array, tolerance: float = 1e-12) -> bool:
     """Test if point is inside tetrahedron using orientation tests.
 
     A point is inside a tetrahedron if it lies on the same side of all four
@@ -349,7 +319,7 @@ def is_point_inside_tetrahedron_3d(
         face0_orientation * face0_reference >= 0,
         face1_orientation * face1_reference >= 0,
         face2_orientation * face2_reference >= 0,
-        face3_orientation * face3_reference >= 0
+        face3_orientation * face3_reference >= 0,
     ]
 
     return all(conditions)
@@ -359,7 +329,7 @@ def is_point_inside_tetrahedron_3d(
 # JIT-COMPILED VERSIONS
 # =============================================================================
 
-quickhull_3d_jit = jax.jit(quickhull_3d, static_argnames=['max_iterations'])
+quickhull_3d_jit = jax.jit(quickhull_3d, static_argnames=["max_iterations"])
 orientation_3d_jit = jax.jit(orientation_3d)
 point_to_plane_distance_3d_jit = jax.jit(point_to_plane_distance_3d)
 is_point_inside_tetrahedron_3d_jit = jax.jit(is_point_inside_tetrahedron_3d)

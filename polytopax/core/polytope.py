@@ -1,12 +1,12 @@
 """ConvexHull class for object-oriented API."""
 
-import contextlib
 import warnings
 from dataclasses import dataclass, field
 from typing import Any
 
 import jax
 import jax.numpy as jnp
+import numpy as np
 from jax import Array
 
 # Removed direct imports to avoid circular dependency
@@ -39,11 +39,12 @@ class ConvexHull:
         >>> print(f"Volume: {hull.volume():.4f}")
         >>> print(f"Centroid: {hull.centroid()}")
     """
+
     vertices: HullVertices
     faces: Array | None = None
     algorithm_info: dict[str, Any] = field(default_factory=dict)
     _volume_cache: float | None = field(default=None, init=False)
-    _surface_area_cache: float | None = field(default=None, init=False)
+    _surface_area_cache: float | Array | None = field(default=None, init=False)
     _centroid_cache: Array | None = field(default=None, init=False)
 
     def __post_init__(self):
@@ -60,39 +61,32 @@ class ConvexHull:
 
     def _register_pytree(self):
         """Register ConvexHull as JAX pytree for transformation compatibility."""
+
         def _tree_flatten(self):
             # Children are the arrays that should be transformed
             children = (self.vertices, self.faces)
             # Auxiliary data includes everything else
             aux_data = {
-                'algorithm_info': self.algorithm_info,
-                '_volume_cache': self._volume_cache,
-                '_surface_area_cache': self._surface_area_cache,
-                '_centroid_cache': self._centroid_cache
+                "algorithm_info": self.algorithm_info,
+                "_volume_cache": self._volume_cache,
+                "_surface_area_cache": self._surface_area_cache,
+                "_centroid_cache": self._centroid_cache,
             }
             return children, aux_data
 
         def _tree_unflatten(aux_data, children):
             vertices, faces = children
             # Create ConvexHull with basic parameters
-            hull = ConvexHull(
-                vertices=vertices,
-                faces=faces,
-                algorithm_info=aux_data['algorithm_info']
-            )
+            hull = ConvexHull(vertices=vertices, faces=faces, algorithm_info=aux_data["algorithm_info"])
             # Restore cache fields
             for k, v in aux_data.items():
-                if k.startswith('_'):
+                if k.startswith("_"):
                     setattr(hull, k, v)
             return hull
 
         # Register the pytree only if not already registered
         try:
-            jax.tree_util.register_pytree_node(
-                ConvexHull,
-                _tree_flatten,
-                _tree_unflatten
-            )
+            jax.tree_util.register_pytree_node(ConvexHull, _tree_flatten, _tree_unflatten)
         except ValueError as e:
             if "Duplicate custom PyTreeDef type registration" in str(e):
                 # Already registered, ignore
@@ -102,12 +96,7 @@ class ConvexHull:
                 raise
 
     @classmethod
-    def from_points(
-        cls,
-        points: PointCloud,
-        algorithm: str = "approximate",
-        **kwargs
-    ) -> "ConvexHull":
+    def from_points(cls, points: PointCloud, algorithm: str = "approximate", **kwargs) -> "ConvexHull":
         """Create ConvexHull from point cloud.
 
         Args:
@@ -127,32 +116,30 @@ class ConvexHull:
         if algorithm == "approximate":
             # Lazy import to avoid circular dependency
             from ..algorithms.approximation import approximate_convex_hull
+
             hull_vertices, hull_indices = approximate_convex_hull(points, **kwargs)
             algorithm_info = {
                 "algorithm": algorithm,
                 "n_original_points": points.shape[-2],
                 "n_hull_vertices": hull_vertices.shape[-2],
-                **kwargs
+                **kwargs,
             }
         else:
             raise ValueError(f"Unknown algorithm: {algorithm}")
 
-        return cls(
-            vertices=hull_vertices,
-            algorithm_info=algorithm_info
-        )
+        return cls(vertices=hull_vertices, algorithm_info=algorithm_info)
 
     @property
     def n_vertices(self) -> int:
         """Number of hull vertices."""
-        return self.vertices.shape[-2]
+        return int(self.vertices.shape[-2])
 
     @property
     def dimension(self) -> int:
         """Spatial dimension."""
-        return self.vertices.shape[-1]
+        return int(self.vertices.shape[-1])
 
-    def volume(self, method: str = "simplex_decomposition") -> float:
+    def volume(self, method: str = "simplex_decomposition") -> float | Array:
         """Compute hull volume (with caching).
 
         Args:
@@ -165,15 +152,18 @@ class ConvexHull:
         if cache_key not in self.__dict__ or self.__dict__[cache_key] is None:
             # Lazy import to avoid circular dependency
             from ..operations.predicates import convex_hull_volume
+
             volume_value = convex_hull_volume(self.vertices, method=method)
-            with contextlib.suppress(TypeError, ValueError):
-                # Convert to Python scalar only if not in JAX transformation
-                volume_value = float(volume_value)
+            # Keep as Array for JAX compatibility
+            # with contextlib.suppress(TypeError, ValueError):
+            #     # Convert to Python scalar only if not in JAX transformation
+            #     volume_value = float(volume_value)
             setattr(self, cache_key, volume_value)
 
-        return getattr(self, cache_key)
+        cached_value = getattr(self, cache_key)
+        return cached_value  # type: ignore[no-any-return]
 
-    def surface_area(self) -> float:
+    def surface_area(self) -> float | Array:
         """Compute hull surface area (with caching).
 
         Returns:
@@ -182,10 +172,12 @@ class ConvexHull:
         if self._surface_area_cache is None:
             # Lazy import to avoid circular dependency
             from ..operations.predicates import convex_hull_surface_area
+
             surface_area_value = convex_hull_surface_area(self.vertices, self.faces)
-            with contextlib.suppress(TypeError, ValueError):
-                # Convert to Python scalar only if not in JAX transformation
-                surface_area_value = float(surface_area_value)
+            # Keep as Array for JAX compatibility
+            # with contextlib.suppress(TypeError, ValueError):
+            #     # Convert to Python scalar only if not in JAX transformation
+            #     surface_area_value = float(surface_area_value)
             self._surface_area_cache = surface_area_value
         return self._surface_area_cache
 
@@ -201,6 +193,7 @@ class ConvexHull:
         """
         # Lazy import to avoid circular dependency
         from ..operations.predicates import point_in_convex_hull
+
         return bool(point_in_convex_hull(point, self.vertices, tolerance))
 
     def distance_to(self, point: Array) -> float:
@@ -214,6 +207,7 @@ class ConvexHull:
         """
         # Lazy import to avoid circular dependency
         from ..operations.predicates import distance_to_convex_hull
+
         return float(distance_to_convex_hull(point, self.vertices))
 
     def centroid(self) -> Array:
@@ -267,7 +261,7 @@ class ConvexHull:
             _, s, _ = jnp.linalg.svd(centered_vertices.T, full_matrices=False)
             rank = jnp.sum(s > tolerance)
             return int(rank) < self.dimension
-        except jnp.linalg.LinAlgError:
+        except np.linalg.LinAlgError:
             return True
 
     def summary(self) -> dict[str, Any]:
@@ -288,7 +282,7 @@ class ConvexHull:
             "bounding_box_min": min_coords.tolist(),
             "bounding_box_max": max_coords.tolist(),
             "is_degenerate": self.is_degenerate(),
-            "algorithm_info": self.algorithm_info
+            "algorithm_info": self.algorithm_info,
         }
 
         return summary_dict
@@ -307,10 +301,7 @@ class ConvexHull:
         Returns:
             Dictionary representation suitable for serialization
         """
-        result = {
-            "vertices": self.vertices.tolist(),
-            "algorithm_info": self.algorithm_info
-        }
+        result = {"vertices": self.vertices.tolist(), "algorithm_info": self.algorithm_info}
 
         if self.faces is not None:
             result["faces"] = self.faces.tolist()
@@ -334,19 +325,11 @@ class ConvexHull:
 
         algorithm_info = data.get("algorithm_info", {})
 
-        return cls(
-            vertices=vertices,
-            faces=faces,
-            algorithm_info=algorithm_info
-        )
+        return cls(vertices=vertices, faces=faces, algorithm_info=algorithm_info)
 
     def __repr__(self) -> str:
         """String representation of ConvexHull."""
-        return (
-            f"ConvexHull(n_vertices={self.n_vertices}, "
-            f"dimension={self.dimension}, "
-            f"volume={self.volume():.6f})"
-        )
+        return f"ConvexHull(n_vertices={self.n_vertices}, dimension={self.dimension}, volume={self.volume():.6f})"
 
     def __str__(self) -> str:
         """Human-readable string representation."""
@@ -359,7 +342,7 @@ class ConvexHull:
             f"  Surface Area: {summary['surface_area']:.6f}",
             f"  Centroid: {summary['centroid']}",
             f"  Diameter: {summary['diameter']:.6f}",
-            f"  Algorithm: {summary['algorithm_info'].get('algorithm', 'unknown')}"
+            f"  Algorithm: {summary['algorithm_info'].get('algorithm', 'unknown')}",
         ]
         return "\n".join(lines)
 
@@ -375,17 +358,14 @@ class ConvexHull:
         Returns:
             New scaled ConvexHull instance
         """
-        warnings.warn(
-            "Scale transformation not implemented in Phase 1",
-            UserWarning, stacklevel=2
-        )
+        warnings.warn("Scale transformation not implemented in Phase 1", UserWarning, stacklevel=2)
         # Placeholder implementation
-        scaled_vertices = self.vertices * factor if jnp.isscalar(factor) else self.vertices * factor[None, :]
+        if isinstance(factor, int | float) or jnp.ndim(factor) == 0:
+            scaled_vertices = self.vertices * factor
+        else:
+            scaled_vertices = self.vertices * jnp.asarray(factor)[None, :]
 
-        return ConvexHull(
-            vertices=scaled_vertices,
-            algorithm_info={**self.algorithm_info, "transformed": "scaled"}
-        )
+        return ConvexHull(vertices=scaled_vertices, algorithm_info={**self.algorithm_info, "transformed": "scaled"})
 
     def translate(self, vector: Array) -> "ConvexHull":
         """Translate the convex hull (Phase 2 implementation).
@@ -396,16 +376,12 @@ class ConvexHull:
         Returns:
             New translated ConvexHull instance
         """
-        warnings.warn(
-            "Translate transformation not implemented in Phase 1",
-            UserWarning, stacklevel=2
-        )
+        warnings.warn("Translate transformation not implemented in Phase 1", UserWarning, stacklevel=2)
         # Placeholder implementation
         translated_vertices = self.vertices + vector[None, :]
 
         return ConvexHull(
-            vertices=translated_vertices,
-            algorithm_info={**self.algorithm_info, "transformed": "translated"}
+            vertices=translated_vertices, algorithm_info={**self.algorithm_info, "transformed": "translated"}
         )
 
     def rotate(self, angle: float, axis: Array | None = None) -> "ConvexHull":
@@ -418,19 +394,15 @@ class ConvexHull:
         Returns:
             New rotated ConvexHull instance
         """
-        warnings.warn(
-            "Rotate transformation not implemented in Phase 1",
-            UserWarning, stacklevel=2
-        )
+        warnings.warn("Rotate transformation not implemented in Phase 1", UserWarning, stacklevel=2)
         # Placeholder - just return copy for now
         return ConvexHull(
-            vertices=self.vertices,
-            faces=self.faces,
-            algorithm_info={**self.algorithm_info, "transformed": "rotated"}
+            vertices=self.vertices, faces=self.faces, algorithm_info={**self.algorithm_info, "transformed": "rotated"}
         )
 
 
 # Utility functions for working with ConvexHull objects
+
 
 def hull_intersection(hull1: ConvexHull, hull2: ConvexHull) -> ConvexHull:
     """Compute intersection of two convex hulls (Phase 2 implementation).
@@ -442,10 +414,7 @@ def hull_intersection(hull1: ConvexHull, hull2: ConvexHull) -> ConvexHull:
     Returns:
         ConvexHull representing the intersection
     """
-    warnings.warn(
-        "Hull intersection not implemented in Phase 1",
-        UserWarning, stacklevel=2
-    )
+    warnings.warn("Hull intersection not implemented in Phase 1", UserWarning, stacklevel=2)
     # Placeholder - return first hull for now
     return hull1
 
@@ -464,9 +433,7 @@ def hull_union(hull1: ConvexHull, hull2: ConvexHull) -> ConvexHull:
     combined_vertices = jnp.concatenate([hull1.vertices, hull2.vertices], axis=0)
 
     return ConvexHull.from_points(
-        combined_vertices,
-        algorithm="approximate",
-        n_directions=max(100, combined_vertices.shape[0] // 2)
+        combined_vertices, algorithm="approximate", n_directions=max(100, combined_vertices.shape[0] // 2)
     )
 
 
@@ -480,15 +447,13 @@ def minkowski_sum(hull1: ConvexHull, hull2: ConvexHull) -> ConvexHull:
     Returns:
         ConvexHull representing the Minkowski sum
     """
-    warnings.warn(
-        "Minkowski sum not implemented in Phase 1",
-        UserWarning, stacklevel=2
-    )
+    warnings.warn("Minkowski sum not implemented in Phase 1", UserWarning, stacklevel=2)
     # Placeholder - return union for now
     return hull_union(hull1, hull2)
 
 
 # JAX-compatible functions for batch operations
+
 
 def batch_hull_volumes(hulls: list) -> Array:
     """Compute volumes for a batch of hulls.

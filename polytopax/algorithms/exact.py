@@ -24,11 +24,7 @@ from ..core.utils import (
 )
 
 
-def quickhull(
-    points: PointCloud,
-    tolerance: float = 1e-12,
-    max_iterations: int = 1000
-) -> tuple[HullVertices, Array]:
+def quickhull(points: PointCloud, tolerance: float = 1e-12, max_iterations: int = 1000) -> tuple[HullVertices, Array]:
     """JAX-compatible QuickHull algorithm for exact convex hull computation.
 
     QuickHull is a divide-and-conquer algorithm that recursively finds
@@ -71,10 +67,7 @@ def quickhull(
         return _quickhull_nd(points, tolerance, max_iterations)
 
 
-def _quickhull_2d(
-    points: Array,
-    tolerance: float
-) -> tuple[Array, Array]:
+def _quickhull_2d(points: Array, tolerance: float) -> tuple[Array, Array]:
     """Specialized 2D QuickHull implementation.
 
     For 2D, QuickHull reduces to finding the upper and lower hulls
@@ -104,10 +97,7 @@ def _quickhull_2d(
     # Check if all points are collinear
     all_collinear = True
     for point in sorted_points[1:-1]:
-        cross_product = abs(_cross_product_2d(
-            rightmost - leftmost,
-            point - leftmost
-        ))
+        cross_product = abs(_cross_product_2d(rightmost - leftmost, point - leftmost))
         if cross_product > tolerance:
             all_collinear = False
             break
@@ -127,14 +117,14 @@ def _quickhull_2d(
     # Combine upper and lower hulls
     # Remove duplicate endpoints
     if len(upper_points) > 0 and len(lower_points) > 0:
-        hull_points = jnp.concatenate([
-            upper_points,
-            lower_points[1:-1]  # Remove endpoints to avoid duplicates
-        ], axis=0)
-        hull_indices = jnp.concatenate([
-            upper_indices,
-            lower_indices[1:-1]
-        ], axis=0)
+        hull_points = jnp.concatenate(
+            [
+                upper_points,
+                lower_points[1:-1],  # Remove endpoints to avoid duplicates
+            ],
+            axis=0,
+        )
+        hull_indices = jnp.concatenate([upper_indices, lower_indices[1:-1]], axis=0)
     else:
         hull_points = jnp.array([leftmost, rightmost])
         hull_indices = jnp.array([sorted_indices[0], sorted_indices[-1]])
@@ -143,12 +133,7 @@ def _quickhull_2d(
 
 
 def _find_hull_side_2d(
-    sorted_points: Array,
-    sorted_indices: Array,
-    start_point: Array,
-    end_point: Array,
-    side: str,
-    tolerance: float
+    sorted_points: Array, sorted_indices: Array, start_point: Array, end_point: Array, side: str, tolerance: float
 ) -> tuple[Array, Array]:
     """Find points on one side of the hull (upper or lower) for 2D QuickHull.
 
@@ -179,10 +164,7 @@ def _find_hull_side_2d(
             continue
 
         # Compute signed distance from point to line
-        cross_product = _cross_product_2d(
-            end_point - start_point,
-            point - start_point
-        )
+        cross_product = _cross_product_2d(end_point - start_point, point - start_point)
 
         is_on_side = cross_product > tolerance if side == "upper" else cross_product < -tolerance
 
@@ -208,10 +190,7 @@ def _find_hull_side_2d(
         return jnp.array([start_point]), jnp.array([sorted_indices[0]])
 
     for i, point in enumerate(side_points_array):
-        distance = abs(_cross_product_2d(
-            line_vector,
-            point - start_point
-        )) / line_length
+        distance = abs(_cross_product_2d(line_vector, point - start_point)) / line_length
 
         if distance > max_distance:
             max_distance = distance
@@ -229,14 +208,14 @@ def _find_hull_side_2d(
 
     # Combine results (remove duplicate farthest_point)
     if len(left_hull) > 0 and len(right_hull) > 0:
-        combined_hull = jnp.concatenate([
-            left_hull[:-1],  # Remove last point to avoid duplicate
-            right_hull
-        ], axis=0)
-        combined_indices = jnp.concatenate([
-            left_indices[:-1],
-            right_indices
-        ], axis=0)
+        combined_hull = jnp.concatenate(
+            [
+                left_hull[:-1],  # Remove last point to avoid duplicate
+                right_hull,
+            ],
+            axis=0,
+        )
+        combined_indices = jnp.concatenate([left_indices[:-1], right_indices], axis=0)
     elif len(left_hull) > 0:
         combined_hull = left_hull
         combined_indices = left_indices
@@ -247,41 +226,35 @@ def _find_hull_side_2d(
     return combined_hull, combined_indices
 
 
-def _cross_product_2d(v1: Array, v2: Array) -> float:
+def _cross_product_2d(v1: Array, v2: Array) -> Array:
     """Compute 2D cross product (determinant)."""
     return v1[0] * v2[1] - v1[1] * v2[0]
 
 
-def _quickhull_3d(
-    points: Array,
-    tolerance: float,
-    max_iterations: int
-) -> tuple[Array, Array]:
+def _quickhull_3d(points: Array, tolerance: float, max_iterations: int) -> tuple[Array, Array]:
     """Specialized 3D QuickHull implementation.
 
     Delegates to the full 3D implementation in exact_3d module.
     """
     from .exact_3d import quickhull_3d
+
     return quickhull_3d(points, tolerance, max_iterations)
 
 
-def _quickhull_nd(
-    points: Array,
-    tolerance: float,
-    max_iterations: int
-) -> tuple[Array, Array]:
+def _quickhull_nd(points: Array, tolerance: float, max_iterations: int) -> tuple[Array, Array]:
     """General n-dimensional QuickHull implementation.
 
     This is a placeholder for future n-dimensional implementation.
     """
     warnings.warn(
-        f"N-dimensional QuickHull for {points.shape[-1]}D is not implemented yet, "
-        "falling back to approximation",
-        UserWarning, stacklevel=2
+        f"N-dimensional QuickHull for {points.shape[-1]}D is not implemented yet, falling back to approximation",
+        UserWarning,
+        stacklevel=2,
     )
 
     # For now, fall back to approximation
     from .approximation import improved_approximate_convex_hull
+
     return improved_approximate_convex_hull(points)
 
 
@@ -289,12 +262,8 @@ def _quickhull_nd(
 # GEOMETRIC PREDICATES FOR EXACT ALGORITHMS
 # =============================================================================
 
-def orientation_2d(
-    p1: Array,
-    p2: Array,
-    p3: Array,
-    tolerance: float = 1e-12
-) -> int:
+
+def orientation_2d(p1: Array, p2: Array, p3: Array, tolerance: float = 1e-12) -> int:
     """Determine orientation of three points in 2D.
 
     Args:
@@ -316,48 +285,39 @@ def orientation_2d(
         return -1  # Clockwise
 
 
-def point_to_line_distance_2d(
-    point: Array,
-    line_start: Array,
-    line_end: Array
-) -> float:
+def point_to_line_distance_2d(point: Array, line_start: Array, line_end: Array) -> Array:
     """Compute signed distance from point to line in 2D.
 
     Positive distance means the point is to the left of the directed line.
     """
-    return _cross_product_2d(
-        line_end - line_start,
-        point - line_start
-    ) / jnp.linalg.norm(line_end - line_start)
+    return jnp.array(
+        _cross_product_2d(line_end - line_start, point - line_start) / jnp.linalg.norm(line_end - line_start)
+    )
 
 
-def is_point_inside_triangle_2d(
-    point: Array,
-    triangle: Array,
-    tolerance: float = 1e-12
-) -> bool:
+def is_point_inside_triangle_2d(point: Array, triangle: Array, tolerance: float = 1e-12) -> Array:
     """Test if point is inside triangle using barycentric coordinates."""
     v0, v1, v2 = triangle[0], triangle[1], triangle[2]
 
     # Compute barycentric coordinates
     denom = (v1[1] - v2[1]) * (v0[0] - v2[0]) + (v2[0] - v1[0]) * (v0[1] - v2[1])
 
-    if abs(denom) < tolerance:
-        return False  # Degenerate triangle
+    if jnp.abs(denom) < tolerance:
+        return jnp.array(False)  # Degenerate triangle
 
     a = ((v1[1] - v2[1]) * (point[0] - v2[0]) + (v2[0] - v1[0]) * (point[1] - v2[1])) / denom
     b = ((v2[1] - v0[1]) * (point[0] - v2[0]) + (v0[0] - v2[0]) * (point[1] - v2[1])) / denom
     c = 1 - a - b
 
     # Point is inside if all barycentric coordinates are non-negative
-    return a >= -tolerance and b >= -tolerance and c >= -tolerance
+    return jnp.logical_and(jnp.logical_and(a >= -tolerance, b >= -tolerance), c >= -tolerance)
 
 
 # =============================================================================
 # JIT-COMPILED VERSIONS
 # =============================================================================
 
-quickhull_jit = jax.jit(quickhull, static_argnames=['max_iterations'])
+quickhull_jit = jax.jit(quickhull, static_argnames=["max_iterations"])
 orientation_2d_jit = jax.jit(orientation_2d)
 point_to_line_distance_2d_jit = jax.jit(point_to_line_distance_2d)
 is_point_inside_triangle_2d_jit = jax.jit(is_point_inside_triangle_2d)
