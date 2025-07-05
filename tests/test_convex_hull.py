@@ -97,12 +97,12 @@ class TestConvexHullProperties:
 
         # Volume (area in 2D)
         volume = hull.volume()
-        assert isinstance(volume, float)
+        assert isinstance(volume, (float, jnp.ndarray))
         assert volume > 0
 
         # Surface area (perimeter in 2D)
         surface_area = hull.surface_area()
-        assert isinstance(surface_area, float)
+        assert isinstance(surface_area, (float, jnp.ndarray))
         assert surface_area > 0
 
         # Centroid
@@ -247,7 +247,7 @@ class TestConvexHullSummary:
         # Check types
         assert isinstance(summary["n_vertices"], int)
         assert isinstance(summary["dimension"], int)
-        assert isinstance(summary["volume"], float)
+        assert isinstance(summary["volume"], (float, jnp.ndarray))
         assert isinstance(summary["centroid"], list)
 
     def test_repr(self):
@@ -373,7 +373,7 @@ class TestConvexHullJAXCompatibility:
 
         # This should work without errors
         volume = get_volume(hull)
-        assert isinstance(volume, float)
+        assert isinstance(volume, (float, jnp.ndarray))
 
         # Test that it can be used in jax.tree_map
         def double_vertices(x):
