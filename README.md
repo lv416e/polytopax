@@ -3,11 +3,11 @@
 **GPU-accelerated differentiable convex hull computation powered by JAX**
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![PyPI](https://img.shields.io/pypi/v/riemannax.svg?cache=no)](https://pypi.org/project/riemannax/)
-[![Tests](https://github.com/lv416e/riemannax/actions/workflows/tests.yml/badge.svg)](https://github.com/lv416e/riemannax/actions/workflows/tests.yml)
-[![Lint](https://github.com/lv416e/riemannax/actions/workflows/lint.yml/badge.svg)](https://github.com/lv416e/riemannax/actions/workflows/lint.yml)
-[![Docs](https://github.com/lv416e/riemannax/actions/workflows/docs.yml/badge.svg)](https://github.com/lv416e/riemannax/actions/workflows/docs.yml)
-[![Release](https://github.com/lv416e/riemannax/actions/workflows/release.yml/badge.svg)](https://github.com/lv416e/riemannax/actions/workflows/release.yml)
+[![PyPI](https://img.shields.io/pypi/v/polytopax.svg?cache=no)](https://pypi.org/project/polytopax/)
+[![Tests](https://github.com/lv416e/polytopax/actions/workflows/tests.yml/badge.svg)](https://github.com/lv416e/polytopax/actions/workflows/tests.yml)
+[![Lint](https://github.com/lv416e/polytopax/actions/workflows/lint.yml/badge.svg)](https://github.com/lv416e/polytopax/actions/workflows/lint.yml)
+[![Docs](https://github.com/lv416e/polytopax/actions/workflows/docs.yml/badge.svg)](https://github.com/lv416e/polytopax/actions/workflows/docs.yml)
+[![Release](https://github.com/lv416e/polytopax/actions/workflows/release.yml/badge.svg)](https://github.com/lv416e/polytopax/actions/workflows/release.yml)
 
 PolytopAX brings modern computational geometry to the JAX ecosystem, enabling **differentiable convex hull computation** with GPU acceleration and automatic differentiation for machine learning applications.
 
